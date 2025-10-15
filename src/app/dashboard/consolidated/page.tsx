@@ -9,10 +9,10 @@ import { makeConsolidatedColumns, type ConsolidatedRow } from "@/components/cons
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Sparkles } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function ConsolidatedPage() {
+function ConsolidatedContent() {
   const { products, pharmacies, conversions } = useAppState();
   const dispatch = useAppDispatch();
   const router = useRouter();
@@ -396,5 +396,13 @@ export default function ConsolidatedPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ConsolidatedPage() {
+  return (
+    <Suspense fallback={null}>
+      <ConsolidatedContent />
+    </Suspense>
   );
 }
