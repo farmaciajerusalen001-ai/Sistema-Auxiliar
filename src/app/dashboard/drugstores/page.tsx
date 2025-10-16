@@ -226,10 +226,10 @@ function DrugstoresContent() {
       bag.set(key, curr);
     }
 
-    // Convertir mapas a arrays y ocultar filas con TOTAL 0
+    // Convertir mapas a arrays (no ocultar TOTAL 0 para evitar exportes en blanco)
     const result: Record<string, DrugstoreRow[]> = {};
     for (const [drugstoreId, bag] of buckets) {
-      const rows = Array.from(bag.values()).filter((r) => (r.TOTAL ?? 0) > 0).map((r) => {
+      const rows = Array.from(bag.values()).map((r) => {
         // Formato de TOTAL respetando la máxima cantidad de decimales observada entre sucursales
         const decs = Number((r as any).__totalDecs ?? 0);
         if (Number.isFinite(decs) && decs > 0) {
@@ -331,13 +331,22 @@ function DrugstoresContent() {
         if (id === 'CODIGO') return (r as any).CODIGO;
         if (id === 'PRODUCTO') return (r as any).PRODUCTO;
         if (id === 'FAMILIA') return (r as any).FAMILIA;
-        if (id === 'TOTAL') return conv ? (Number((r as any).TOTAL) / factor) : (r as any).TOTAL;
+        if (id === 'TOTAL') {
+          if (!conv) return (r as any).TOTAL;
+          const raw = Number((r as any).TOTAL);
+          let val = raw / factor;
+          if ((conv as any).roundUp) val = Math.ceil(val);
+          return val;
+        }
         if (id === 'UNI_MED') return conv ? (conversions[convKey]?.targetUnit ?? (r as any).UNI_MED) : (r as any).UNI_MED;
         if (id === 'VALOR_TOTAL') return Number((r as any).VALOR_TOTAL ?? 0);
         if (id === 'OBSERVACIONES') return (r as any).OBSERVACIONES ?? '';
         // branch metrics
         const v = Number((r as any)[id] ?? 0);
-        return conv ? v / factor : v;
+        if (!conv) return v;
+        let val = v / factor;
+        if ((conv as any).roundUp) val = Math.ceil(val);
+        return val;
       });
     });
 
@@ -432,8 +441,9 @@ function DrugstoresContent() {
         if (id === 'FAMILIA') return (r as any).FAMILIA;
         if (id === 'TOTAL') {
           const val = conv ? (Number((r as any).TOTAL) / factor) : (r as any).TOTAL;
+          const rounded = conv && (conv as any).roundUp ? Math.ceil(Number(val)) : val;
           const fmt = (r as any).TOTAL_FMT;
-          return fmt ?? (typeof val === 'number' ? val.toLocaleString(undefined, { maximumFractionDigits: 4 }) : val);
+          return fmt ?? (typeof rounded === 'number' ? Number(rounded).toLocaleString(undefined, { maximumFractionDigits: 4 }) : rounded);
         }
         if (id === 'UNI_MED') return conv ? (conversions[convKey]?.targetUnit ?? (r as any).UNI_MED) : (r as any).UNI_MED;
         if (id === 'VALOR_TOTAL') {
@@ -443,7 +453,11 @@ function DrugstoresContent() {
         }
         if (id === 'OBSERVACIONES') return conv ? (conversions[convKey]?.comment ?? (r as any).OBSERVACIONES ?? '') : ((r as any).OBSERVACIONES ?? '');
         const raw = Number((r as any)[id] ?? 0);
-        if (conv) return (raw / factor).toLocaleString(undefined, { maximumFractionDigits: 4 });
+        if (conv) {
+          let val = raw / factor;
+          if ((conv as any).roundUp) val = Math.ceil(val);
+          return val.toLocaleString(undefined, { maximumFractionDigits: 4 });
+        }
         const fmt = (r as any)[`${id}_FMT`];
         return fmt ?? raw.toLocaleString(undefined, { maximumFractionDigits: 4 });
       });
@@ -458,6 +472,51 @@ function DrugstoresContent() {
     w.document.close();
     w.focus();
     w.print();
+
+    // Descarga automática de PDF usando html2pdf.js en un contenedor oculto
+    try {
+      const stylePdf = `
+        <style>
+          body { font-family: Arial, sans-serif; padding: 24px; }
+          h1 { font-size: 18px; margin-bottom: 8px; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { border: 1px solid #ddd; padding: 6px; font-size: 12px; }
+          th { background: #f0f0f0; text-align: left; }
+          .right { text-align: right; }
+        </style>`;
+      const holder = document.createElement('div');
+      holder.style.position = 'fixed';
+      holder.style.left = '-99999px';
+      holder.style.top = '0';
+      const headColsHtml = headCols.map(c=>`<th>${c}</th>`).join('');
+      const bodyRowsHtml = bodyRows.map(row=>'<tr>' + row.map((c,i)=>`<td class="${i>2?'right':''}">${c}</td>`).join('') + '</tr>').join('');
+      holder.innerHTML = `${stylePdf}<div id="pdf-drugstore-root"><h1>${title}</h1><table><thead><tr>${headColsHtml}</tr></thead><tbody>${bodyRowsHtml}</tbody></table></div>`;
+      document.body.appendChild(holder);
+      const dateStr = new Date().toISOString().slice(0,10);
+      const fileName = `Pedidos_${ds?.name ?? drugstoreId}_${dateStr}.pdf`;
+      const doDownload = () => {
+        const anyWin = window as any;
+        const node = document.getElementById('pdf-drugstore-root');
+        if (anyWin.html2pdf && node) {
+          anyWin.html2pdf().from(node).set({
+            filename: fileName,
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
+          }).save().finally(() => holder.remove());
+        } else {
+          holder.remove();
+        }
+      };
+      if (!(window as any).html2pdf) {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+        s.onload = doDownload;
+        s.onerror = () => holder.remove();
+        document.body.appendChild(s);
+      } else {
+        doDownload();
+      }
+    } catch {}
 
     // Limpiar conversiones después de descargar
     dispatch({ type: "CLEAR_CONVERSIONS" });

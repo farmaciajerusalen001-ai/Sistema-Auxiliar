@@ -29,6 +29,7 @@ export function ConversionTool() {
   const [amount, setAmount] = useState<number>(1);
   const [targetFactor, setTargetFactor] = useState<number>(10); // 1 target = factor source
   const [comment, setComment] = useState<string>("");
+  const [roundUp, setRoundUp] = useState<boolean>(false);
 
   const selectedProduct = useMemo(
     () => products.find((p) => p.id === selectedProductId),
@@ -107,8 +108,9 @@ export function ConversionTool() {
     const f = Number(targetFactor);
     if (!Number.isFinite(f) || f <= 0) return 0;
     // 1 target = f source -> source -> target = qty / f
-    return qty / f;
-  }, [selectedProduct, targetUnit, amount, targetFactor]);
+    const val = qty / f;
+    return roundUp ? Math.ceil(val) : val;
+  }, [selectedProduct, targetUnit, amount, targetFactor, roundUp]);
 
   const isFactorValid = useMemo(() => Number(targetFactor) > 0, [targetFactor]);
 
@@ -275,25 +277,38 @@ export function ConversionTool() {
                       targetUnit: targetUnit,
                       factor,
                       comment: comment?.trim() || undefined,
+                      roundUp: !!roundUp,
                     },
                   },
                 });
                 toast({ title: "Guardado", description: `1 ${targetUnit} = ${factor} ${selectedProduct.unit}` });
                 
-                // Auto export after save si viene de una exportación específica
+                // Modo lote: acumular hasta 100 conversiones antes de exportar
                 if (exportAfterSave && exportAfterSave.page === 'drugstores') {
-                  // Ejecutar descarga automática para droguerías
-                  const { drugstoreId } = exportAfterSave.params || {};
-                  if (drugstoreId) {
-                    // Simular la descarga automática
-                    const exportUrl = `/dashboard/drugstores?autoExport=${exportAfterSave.type}&params=${encodeURIComponent(JSON.stringify({ drugstoreId }))}`;
-                    // Redirigir para ejecutar la descarga automática
-                    window.location.href = exportUrl;
-                    return; // No limpiar aún, se limpia en la página destino
-                  }
+                  try {
+                    const { drugstoreId } = exportAfterSave.params || {};
+                    const type = exportAfterSave.type;
+                    const raw = window.sessionStorage.getItem('phc_conv_batch');
+                    let batch = raw ? JSON.parse(raw) : { drugstoreId, type, count: 0 };
+                    // Si cambia el destino o tipo, reiniciar batch
+                    if (!batch || batch.drugstoreId !== drugstoreId || batch.type !== type) {
+                      batch = { drugstoreId, type, count: 0 };
+                    }
+                    batch.count = Number(batch.count || 0) + 1;
+                    window.sessionStorage.setItem('phc_conv_batch', JSON.stringify(batch));
+                    toast({ title: 'Conversión agregada', description: `Acumuladas ${batch.count}/100. Puedes seguir agregando o descargar ahora.` });
+                    // Disparar automáticamente al llegar a 100
+                    if (batch.count >= 100 && drugstoreId) {
+                      const exportUrl = `/dashboard/drugstores?autoExport=${type}&params=${encodeURIComponent(JSON.stringify({ drugstoreId }))}`;
+                      window.location.href = exportUrl;
+                      return;
+                    }
+                  } catch {}
+                  // No limpiar exportAfterSave; el usuario puede seguir acumulando y usar el botón de descarga
+                  return;
                 }
                 
-                // Para otros casos, limpiar el estado
+                // Caso normal (sin auto export): limpiar bandera si existía
                 dispatch({ type: "CLEAR_EXPORT_AFTER_SAVE" });
               }}
             >
@@ -311,6 +326,21 @@ export function ConversionTool() {
             >
               Limpiar todas las conversiones
             </Button>
+            {exportAfterSave?.page === 'drugstores' && (
+              <Button
+                onClick={() => {
+                  try {
+                    const { drugstoreId } = exportAfterSave.params || {};
+                    if (!drugstoreId) return;
+                    const type = exportAfterSave.type;
+                    const exportUrl = `/dashboard/drugstores?autoExport=${type}&params=${encodeURIComponent(JSON.stringify({ drugstoreId }))}`;
+                    window.location.href = exportUrl;
+                  } catch {}
+                }}
+              >
+                Descargar ahora
+              </Button>
+            )}
           </div>
 
           {existing && (

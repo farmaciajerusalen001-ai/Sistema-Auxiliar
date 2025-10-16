@@ -14,7 +14,7 @@ interface AppState {
   isAuthenticated: boolean;
   user?: { username: string } | null;
   canAccessConversion: boolean;
-  conversions: Record<string, { sourceUnit: string; targetUnit: string; factor: number; comment?: string }>;
+  conversions: Record<string, { sourceUnit: string; targetUnit: string; factor: number; comment?: string; roundUp?: boolean }>;
   drugstores: { id: string; name: string }[];
   familyMap: { family: string; drugstoreId: string }[];
   // manual overrides per product (by convKey: CODIGO or DESCRIPCION)
