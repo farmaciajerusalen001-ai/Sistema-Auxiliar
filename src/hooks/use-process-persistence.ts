@@ -16,7 +16,10 @@ export interface SavedProcess {
   drugstores: { id: string; name: string }[];
   familyMap: { family: string; drugstoreId: string }[];
   conversions?: Record<string, { sourceUnit: string; targetUnit: string; factor: number; comment?: string }>;
+  // Compat: antes se guardaba como Record con claves potencialmente inválidas para Firebase
   productOverrides?: Record<string, { drugstoreId?: string; laboratory?: string }>;
+  // Nuevo formato seguro para Firebase: array de entries
+  productOverridesArr?: Array<{ key: string; drugstoreId?: string; laboratory?: string }>;
   canAccessConversion?: boolean;
   createdAt: number;
   updatedAt: number;
@@ -96,6 +99,21 @@ export const useProcessPersistence = () => {
         throw new Error('Formato de proceso inválido');
       }
 
+      // Reconstruir productOverrides desde el formato array si existe (compatibilidad hacia atrás)
+      let overrides: Record<string, { drugstoreId?: string; laboratory?: string }> = {};
+      if (Array.isArray((process as any).productOverridesArr)) {
+        overrides = (process as any).productOverridesArr.reduce((acc: any, it: any) => {
+          if (!it || typeof it.key !== 'string') return acc;
+          const { key, drugstoreId, laboratory } = it as any;
+          acc[key] = {};
+          if (typeof drugstoreId === 'string' && drugstoreId) acc[key].drugstoreId = drugstoreId;
+          if (typeof laboratory === 'string' && laboratory) acc[key].laboratory = laboratory;
+          return acc;
+        }, {} as Record<string, { drugstoreId?: string; laboratory?: string }>);
+      } else if (process.productOverrides && typeof process.productOverrides === 'object') {
+        overrides = process.productOverrides as any;
+      }
+
       // Rehidratar todo el estado relevante de una vez
       dispatch({
         type: 'REHYDRATE',
@@ -106,7 +124,7 @@ export const useProcessPersistence = () => {
           drugstores: Array.isArray(process.drugstores) ? process.drugstores : [],
           familyMap: Array.isArray(process.familyMap) ? process.familyMap : [],
           conversions: process.conversions || {},
-          productOverrides: process.productOverrides || {},
+          productOverrides: overrides || {},
           canAccessConversion: !!process.canAccessConversion,
         }
       });
@@ -146,6 +164,15 @@ export const useProcessPersistence = () => {
     try {
       validateProcessData({ name });
       
+      // Guardar productOverrides como array de entries (sin propiedades undefined)
+      const productOverridesArr = Object.entries(productOverrides || {}).map(([key, ov]) => {
+        const item: any = { key };
+        const ds = typeof ov?.drugstoreId === 'string' ? ov!.drugstoreId!.trim() : '';
+        const lab = typeof ov?.laboratory === 'string' ? ov!.laboratory!.trim() : '';
+        if (ds) item.drugstoreId = ds;
+        if (lab) item.laboratory = lab;
+        return item;
+      });
       const processData = {
         name: name.trim(),
         description: description.trim(),
@@ -155,7 +182,9 @@ export const useProcessPersistence = () => {
         drugstores: Array.isArray(drugstores) ? drugstores : [],
         familyMap: Array.isArray(familyMap) ? familyMap : [],
         conversions: conversions || {},
-        productOverrides: productOverrides || {},
+        // Compat: no enviar el objeto con claves arbitrarias al backend
+        // productOverrides: productOverrides || {},
+        productOverridesArr,
         canAccessConversion: !!canAccessConversion,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -192,6 +221,14 @@ export const useProcessPersistence = () => {
       if (!processId) throw new Error('ID de proceso no válido');
       validateProcessData({ name });
       
+      const productOverridesArr = Object.entries(productOverrides || {}).map(([key, ov]) => {
+        const item: any = { key };
+        const ds = typeof ov?.drugstoreId === 'string' ? ov!.drugstoreId!.trim() : '';
+        const lab = typeof ov?.laboratory === 'string' ? ov!.laboratory!.trim() : '';
+        if (ds) item.drugstoreId = ds;
+        if (lab) item.laboratory = lab;
+        return item;
+      });
       const updates = {
         name: name.trim(),
         description: description.trim(),
@@ -201,7 +238,8 @@ export const useProcessPersistence = () => {
         drugstores: Array.isArray(drugstores) ? drugstores : [],
         familyMap: Array.isArray(familyMap) ? familyMap : [],
         conversions: conversions || {},
-        productOverrides: productOverrides || {},
+        // productOverrides: productOverrides || {},
+        productOverridesArr,
         canAccessConversion: !!canAccessConversion,
         updatedAt: Date.now(),
       };
