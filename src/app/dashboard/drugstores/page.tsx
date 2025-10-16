@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import { useAppDispatch, useAppState } from "@/lib/store";
 import { baseCanonicalFor, convertQuantity, humanLabelFor } from "@/lib/units";
 import { resolveDrugstoreIdByFamily } from "@/lib/drugstores";
@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Download } from "lucide-react";
 import defaultMap from "@/lib/drugstores-default.json" assert { type: "json" };
 import { useRouter, useSearchParams } from "next/navigation";
-export default function DrugstoresPage() {
+function DrugstoresContent() {
   const { products, pharmacies, conversions, drugstores: dsFromStore, familyMap: fmFromStore, productOverrides } = useAppState();
   const dispatch = useAppDispatch();
   const router = useRouter();
@@ -559,5 +559,13 @@ export default function DrugstoresPage() {
         <div className="text-center text-muted-foreground py-12">No hay filas para mostrar. Verifica el mapeo de familias a droguerías.</div>
       )}
     </div>
+  );
+}
+
+export default function DrugstoresPage() {
+  return (
+    <Suspense fallback={null}>
+      <DrugstoresContent />
+    </Suspense>
   );
 }
