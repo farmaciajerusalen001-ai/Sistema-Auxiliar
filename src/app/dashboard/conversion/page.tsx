@@ -1,5 +1,6 @@
 "use client";
 import { useAppState } from "@/lib/store";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,12 @@ import { ConversionTool } from "@/components/conversion-tool";
 
 export default function ConversionPage() {
   const { canAccessConversion } = useAppState();
+  // Importante: llamar hooks en el mismo orden en todos los renders
   const router = useRouter();
+  // Evita mismatch SSR/CSR cuando el estado proviene del cliente (e.g., sessionStorage)
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
   if (!canAccessConversion) {
     return (
       <div className="max-w-xl mx-auto">

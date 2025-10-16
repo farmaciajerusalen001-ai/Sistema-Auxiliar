@@ -124,7 +124,7 @@ export default function RedistributionPage() {
   const [selectedDrugstore, setSelectedDrugstore] = useState<string>("all");
   const [buffers, setBuffers] = useState<Record<string, number>>(() => {
     const init: Record<string, number> = {};
-    for (const p of pharmacies) init[p.id] = 1; // reserva mínima para no dejar en 0
+    for (const p of pharmacies) init[p.id] = 0; // reserva mínima para no dejar en 0
     return init;
   });
   const [hideZeros, setHideZeros] = useState<boolean>(true);
@@ -288,69 +288,105 @@ export default function RedistributionPage() {
         .muted { color: #6b7280; font-size: 12px; }
         .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
       </style>`;
+    // Construimos el contenido (solo BODY) para descarga con html2pdf
+    let pdfBody = ``;
     w.document.write(`<html><head><title>${title}</title>${style}</head><body>`);
     w.document.write(`<h1>${title}</h1>`);
+    pdfBody += `<h1>${title}</h1>`;
 
     // Sección 1: Resumen por producto (igual que la UI)
     w.document.write(`<h2>Resumen por producto (existencias, a pedir y transferencias)</h2>`);
+    pdfBody += `<h2>Resumen por producto (existencias, a pedir y transferencias)</h2>`;
     for (const row of rowsWithNeed as any[]) {
       const totalAPedir = pharmacies.reduce((acc, ph) => acc + Number(row[`${ph.id}_APEDIR`] ?? 0), 0);
       const totalExist = pharmacies.reduce((acc, ph) => acc + Number(row[`${ph.id}_EXISTENCIA`] ?? 0), 0);
       const moves = plan.filter(m => m.Key === row.__key);
       w.document.write(`<div class="card">`);
+      pdfBody += `<div class="card">`;
       w.document.write(`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">`);
       w.document.write(`<div><strong>${row.CODIGO}</strong> — ${row.Producto} (${row.UNI_MED})</div>`);
       w.document.write(`<div class="muted">Droguería: ${row.__drugstoreName}</div>`);
       w.document.write(`</div>`);
+      pdfBody += `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">`;
+      pdfBody += `<div><strong>${row.CODIGO}</strong> — ${row.Producto} (${row.UNI_MED})</div>`;
+      pdfBody += `<div class="muted">Droguería: ${row.__drugstoreName}</div>`;
+      pdfBody += `</div>`;
       w.document.write(`<div class="grid">`);
+      pdfBody += `<div class="grid">`;
       // Por sucursal
       w.document.write(`<div>`);
       w.document.write(`<div class="muted" style="font-weight:600">Por sucursal</div>`);
       w.document.write(`<table><thead><tr>
         <th>Sucursal</th><th class="right">Existencia</th><th class="right">A Pedir</th>
       </tr></thead><tbody>`);
+      pdfBody += `<div>`;
+      pdfBody += `<div class="muted" style="font-weight:600">Por sucursal</div>`;
+      pdfBody += `<table><thead><tr>
+        <th>Sucursal</th><th class="right">Existencia</th><th class="right">A Pedir</th>
+      </tr></thead><tbody>`;
       for (const ph of pharmacies) {
         const ex = Number(row[`${ph.id}_EXISTENCIA`] ?? 0);
         const ap = Number(row[`${ph.id}_APEDIR`] ?? 0);
         w.document.write(`<tr><td>${ph.name}</td><td class="right">${ex.toLocaleString(undefined,{maximumFractionDigits:4})}</td><td class="right">${ap.toLocaleString(undefined,{maximumFractionDigits:4})}</td></tr>`);
+        pdfBody += `<tr><td>${ph.name}</td><td class="right">${ex.toLocaleString(undefined,{maximumFractionDigits:4})}</td><td class="right">${ap.toLocaleString(undefined,{maximumFractionDigits:4})}</td></tr>`;
       }
       w.document.write(`</tbody><tfoot><tr><td><strong>Totales</strong></td><td class="right"><strong>${totalExist.toLocaleString(undefined,{maximumFractionDigits:4})}</strong></td><td class="right"><strong>${totalAPedir.toLocaleString(undefined,{maximumFractionDigits:4})}</strong></td></tr></tfoot></table>`);
+      pdfBody += `</tbody><tfoot><tr><td><strong>Totales</strong></td><td class="right"><strong>${totalExist.toLocaleString(undefined,{maximumFractionDigits:4})}</strong></td><td class="right"><strong>${totalAPedir.toLocaleString(undefined,{maximumFractionDigits:4})}</strong></td></tr></tfoot></table>`;
       w.document.write(`</div>`);
+      pdfBody += `</div>`;
       // Transferencias
       w.document.write(`<div>`);
       w.document.write(`<div class="muted" style="font-weight:600">Transferencias planificadas</div>`);
+      pdfBody += `<div>`;
+      pdfBody += `<div class="muted" style="font-weight:600">Transferencias planificadas</div>`;
       if (moves.length === 0) {
         w.document.write(`<div class="muted">No hay traslados para este producto.</div>`);
+        pdfBody += `<div class="muted">No hay traslados para este producto.</div>`;
       } else {
         w.document.write(`<table><thead><tr>
           <th>De</th><th>A</th><th class="right">Cantidad</th><th>Unidad</th>
         </tr></thead><tbody>`);
+        pdfBody += `<table><thead><tr>
+          <th>De</th><th>A</th><th class="right">Cantidad</th><th>Unidad</th>
+        </tr></thead><tbody>`;
         for (const m of moves) {
           w.document.write(`<tr><td>${m.From}</td><td>${m.To}</td><td class="right">${m.Cantidad.toLocaleString(undefined,{maximumFractionDigits:4})}</td><td>${m.UNI_MED}</td></tr>`);
+          pdfBody += `<tr><td>${m.From}</td><td>${m.To}</td><td class="right">${m.Cantidad.toLocaleString(undefined,{maximumFractionDigits:4})}</td><td>${m.UNI_MED}</td></tr>`;
         }
         w.document.write(`</tbody></table>`);
+        pdfBody += `</tbody></table>`;
       }
       w.document.write(`</div>`);
+      pdfBody += `</div>`;
       // Reservas
       w.document.write(`<div>`);
       w.document.write(`<div class="muted" style="font-weight:600">Existencias usadas como reserva</div>`);
       w.document.write(`<ul style="margin:4px 0 0 18px;">`);
+      pdfBody += `<div>`;
+      pdfBody += `<div class="muted" style="font-weight:600">Existencias usadas como reserva</div>`;
+      pdfBody += `<ul style="margin:4px 0 0 18px;">`;
       for (const ph of pharmacies) {
         w.document.write(`<li>${ph.name}: reserva mínima ${Number(buffers[ph.id] ?? 0).toLocaleString()}</li>`);
+        pdfBody += `<li>${ph.name}: reserva mínima ${Number(buffers[ph.id] ?? 0).toLocaleString()}</li>`;
       }
       w.document.write(`</ul>`);
       w.document.write(`</div>`);
+      pdfBody += `</ul>`;
+      pdfBody += `</div>`;
       w.document.write(`</div>`);
+      pdfBody += `</div>`;
     }
 
     // Sección 2: Tabla plana de movimientos (opcional para auditoría)
     w.document.write(`<h2>Tabla de movimientos</h2>`);
+    pdfBody += `<h2>Tabla de movimientos</h2>`;
     const branchDefs = pharmacies.map((p) => ({ id: p.id, name: p.name }));
     const head = [
       'Droguería','CODIGO','Producto','De Sucursal','A Sucursal','Cantidad','Unidad',
       ...branchDefs.map(b=>`Existencia ${b.name}`)
     ];
     w.document.write('<table><thead><tr>' + head.map(c=>`<th>${c}</th>`).join('') + '</tr></thead><tbody>');
+    pdfBody += '<table><thead><tr>' + head.map(c=>`<th>${c}</th>`).join('') + '</tr></thead><tbody>';
     for (const m of plan as any[]) {
       const row = [
         m.Drogueria,
@@ -363,13 +399,51 @@ export default function RedistributionPage() {
         ...branchDefs.map(b => (m as any).Stocks?.[b.id] ?? 0)
       ];
       w.document.write('<tr>' + row.map((c,i)=>`<td class="${i>=5?'right':''}">${c}</td>`).join('') + '</tr>');
+      pdfBody += '<tr>' + row.map((c,i)=>`<td class="${i>=5?'right':''}">${c}</td>`).join('') + '</tr>';
     }
     w.document.write('</tbody></table>');
+    pdfBody += '</tbody></table>';
 
     w.document.write('</body></html>');
     w.document.close();
     w.focus();
     w.print();
+
+    // Descarga automática de PDF usando html2pdf.js (CDN) sobre un contenedor oculto
+    const dateStr = new Date().toISOString().slice(0,10);
+    const fileName = `Movimientos_${dateStr}.pdf`;
+    const holder = document.createElement('div');
+    holder.style.position = 'fixed';
+    holder.style.left = '-99999px';
+    holder.style.top = '0';
+    holder.innerHTML = `${style}<div id=\"pdf-root\">${pdfBody}</div>`;
+    document.body.appendChild(holder);
+    const doDownload = () => {
+      const anyWin = window as any;
+      if (anyWin.html2pdf) {
+        const node = document.getElementById('pdf-root');
+        anyWin.html2pdf().from(node).set({
+          filename: fileName,
+          html2canvas: { scale: 2 },
+          jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
+        }).save().then(() => {
+          holder.remove();
+        }).catch(() => {
+          holder.remove();
+        });
+      }
+    };
+    if (!(window as any).html2pdf) {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+      s.onload = doDownload;
+      s.onerror = () => {
+        // si falla el CDN, al menos dejamos la vista de impresión abierta
+      };
+      document.body.appendChild(s);
+    } else {
+      doDownload();
+    }
   };
 
   const visibleFinal = useMemo(() => {
@@ -484,7 +558,7 @@ export default function RedistributionPage() {
             </label>
             <div className="flex gap-2 flex-wrap">
               <Button variant="outline" onClick={undoRedistribution}>Deshacer</Button>
-              <Button variant="secondary" onClick={applyRedistribution} disabled={visibleFinal.length===0}>Aplicar redistribución</Button>
+              <Button variant="secondary" onClick={applyRedistribution} disabled={plan.length===0 && visibleFinal.length===0}>Aplicar redistribución</Button>
               <Button variant="outline" onClick={exportMovementsPdf} disabled={plan.length===0}>Exportar movimientos (PDF)</Button>
               <Button onClick={exportFinalSuggestion} disabled={visibleFinal.length===0}>Exportar compra final (Excel)</Button>
             </div>
