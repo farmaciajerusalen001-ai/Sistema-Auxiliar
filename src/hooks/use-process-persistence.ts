@@ -289,12 +289,19 @@ export const useProcessPersistence = () => {
     }
   }, [deleteFromRealtimeDB, toast, loading]);
 
+  // Iniciar un nuevo proceso (limpia estado de proceso actual)
+  const startNewProcess = useCallback(() => {
+    dispatch({ type: 'START_NEW_PROCESS' });
+    toast({ title: 'Nuevo proceso', description: 'Se ha iniciado un nuevo proceso. Los cambios de familias y asignaciones anteriores se han limpiado.' });
+  }, [dispatch, toast]);
+
   return {
     saveProcess,
     updateProcess,
     loadProcess,
     loadSavedProcesses,
     deleteProcess,
+    startNewProcess,
     loading,
     error,
   };

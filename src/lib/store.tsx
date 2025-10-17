@@ -34,7 +34,7 @@ type Action =
   | { type: "DELETE_PRODUCT"; payload: string }
   | { type: "SET_DATA_LOADED"; payload: boolean }
   | { type: "CLEAR_PRODUCTS" }
-  | { type: "SET_CONVERSION"; payload: { key: string; def: { sourceUnit: string; targetUnit: string; factor: number; comment?: string } } }
+  | { type: "SET_CONVERSION"; payload: { key: string; def: { sourceUnit: string; targetUnit: string; factor: number; comment?: string; roundUp?: boolean } } }
   | { type: "REMOVE_CONVERSION"; payload: { key: string } }
   | { type: "CLEAR_CONVERSIONS" }
   | { type: "SET_PRODUCT_OVERRIDE"; payload: { key: string; override: { drugstoreId?: string; laboratory?: string } } }
@@ -53,7 +53,8 @@ type Action =
   | { type: "SET_EXPORT_AFTER_SAVE"; payload: { page: 'consolidated' | 'drugstores', type: 'excel' | 'pdf', params?: any, filteredProducts?: string[] } }
   | { type: "CLEAR_EXPORT_AFTER_SAVE" }
   | { type: "SET_ACTIVE_PROCESS"; payload: { id: string; name: string } }
-  | { type: "CLEAR_ACTIVE_PROCESS" };
+  | { type: "CLEAR_ACTIVE_PROCESS" }
+  | { type: "START_NEW_PROCESS" };
 
 const initialState: AppState = {
   products: [],
@@ -145,6 +146,21 @@ const appReducer = (state: AppState, action: Action): AppState => {
         exportAfterSave: undefined,
         canAccessConversion: false,
         // mantener el proceso activo, no lo limpiamos aquí
+      };
+    }
+    case "START_NEW_PROCESS": {
+      return {
+        ...state,
+        products: [],
+        isDataLoaded: false,
+        conversions: {},
+        productOverrides: {},
+        exportAfterSave: undefined,
+        canAccessConversion: false,
+        familyMap: [],
+        drugstores: [],
+        activeProcessId: undefined,
+        activeProcessName: undefined,
       };
     }
     case "SET_PRODUCT_OVERRIDE": {

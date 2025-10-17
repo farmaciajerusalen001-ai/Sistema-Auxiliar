@@ -17,6 +17,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 
 export function ConversionTool() {
   const { products, conversions, exportAfterSave } = useAppState();
@@ -154,27 +155,17 @@ export function ConversionTool() {
           onChange={(e) => setQuery(e.target.value)}
           disabled={!!exportAfterSave?.filteredProducts} // Deshabilitar búsqueda cuando hay filtro específico
         />
-        <Select
-          onValueChange={(value) => {
-            setSelectedProductId(value);
-            setTargetUnit("");
-          }}
-        >
-          <SelectTrigger id="product-select">
-            <SelectValue placeholder={
-              exportAfterSave?.filteredProducts 
-                ? `Selecciona producto (${filteredProducts.length} disponibles)` 
-                : query.length < 2 ? "Escribe para buscar" : `Resultados: ${filteredProducts.length}`
-            } />
-          </SelectTrigger>
-          <SelectContent>
-            {filteredProducts.map((product) => (
-              <SelectItem key={product.id} value={product.id}>
-                {(product as any).CODIGO ?? product.code ?? ""} - {(product as any).DESCRIPCION ?? product.name ?? ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          value={selectedProductId || ""}
+          onChange={(value) => { setSelectedProductId(value); setTargetUnit(""); }}
+          options={filteredProducts.map((p) => ({
+            value: p.id,
+            label: `${String((p as any).CODIGO ?? p.code ?? "").trim()} - ${String((p as any).DESCRIPCION ?? p.name ?? "").trim()}`.replace(/^\s*-\s*$/, "")
+          }))}
+          placeholder={exportAfterSave?.filteredProducts ? `Selecciona producto (${filteredProducts.length} disponibles)` : (query.length < 2 ? "Escribe para buscar" : `Resultados: ${filteredProducts.length}`)}
+          searchPlaceholder="Buscar producto..."
+          maxHeightClass="max-h-56"
+        />
         {exportAfterSave?.filteredProducts ? (
           <p className="text-xs text-muted-foreground">
             Solo puedes editar conversiones para productos de {exportAfterSave.page === 'drugstores' ? 'esta droguería' : 'consolidado'}.
@@ -205,18 +196,14 @@ export function ConversionTool() {
 
             <div className="space-y-2">
               <Label htmlFor="target-unit">To</Label>
-              <Select value={targetUnit} onValueChange={setTargetUnit}>
-                <SelectTrigger id="target-unit">
-                  <SelectValue placeholder="Target Unit..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {coherentUnits.map((unit) => (
-                    <SelectItem key={unit} value={unit} disabled={unit === selectedProduct.unit}>
-                      {unit}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                value={targetUnit}
+                onChange={setTargetUnit}
+                options={coherentUnits.map((unit) => ({ value: unit, label: unit, disabled: unit === (selectedProduct?.unit ?? "") }))}
+                placeholder="Target Unit..."
+                searchPlaceholder="Buscar unidad..."
+                maxHeightClass="max-h-56"
+              />
             </div>
 
           <div className="space-y-2">
