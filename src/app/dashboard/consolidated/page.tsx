@@ -152,6 +152,7 @@ function ConsolidatedContent() {
     // Si elige no realizar conversión, continuar con la descarga del Excel
     const XLSX = await import("xlsx");
     const branchDefs = pharmacies.map((p) => ({ id: p.id, name: p.name }));
+    const rows = consolidatedRows.filter(r => Number(r.TotalAPedir ?? 0) > 0);
 
     // Confirmación: aplicar conversiones solo en el archivo (con conteo y preferencia de sesión)
     let applyConv = false;
@@ -187,7 +188,7 @@ function ConsolidatedContent() {
     ];
     const header = cols.map(labelFor);
 
-    const body = consolidatedRows.map((r) => {
+    const body = rows.map((r) => {
       const convKey = r.CODIGO || r.Producto;
       const conv = applyConv ? conversions[convKey] : undefined;
       const factor = conv ? Number(conv.factor) || 1 : 1;
@@ -280,7 +281,8 @@ function ConsolidatedContent() {
       'CODIGO','Producto','Familia','TotalAPedir',...pharmacies.map(p=>p.id),'UNI_MED','ValorTotal'
     ];
     const head = cols.map(labelFor);
-    const body = consolidatedRows.map((r) => {
+    const rows = consolidatedRows.filter(r => Number(r.TotalAPedir ?? 0) > 0);
+    const body = rows.map((r) => {
       const convKey = r.CODIGO || r.Producto;
       const conv = applyConv ? conversions[convKey] : undefined;
       const factor = conv ? Number(conv.factor) || 1 : 1;

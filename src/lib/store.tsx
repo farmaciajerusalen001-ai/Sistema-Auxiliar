@@ -239,12 +239,18 @@ const appReducer = (state: AppState, action: Action): AppState => {
         if (fromIdx !== undefined) {
           const row = clone[fromIdx];
           const cur = Number(row.EXISTENCIA ?? row.EXISTEN ?? row.STOCK ?? 0);
-          row.EXISTENCIA = Math.max(0, cur - m.Cantidad);
+          const next = Math.max(0, Number((cur - m.Cantidad).toFixed(4)));
+          row.EXISTENCIA = next;
+          (row as any).EXISTEN = next;
+          (row as any).STOCK = next;
         }
         if (toIdx !== undefined) {
           const row = clone[toIdx];
           const cur = Number(row.EXISTENCIA ?? row.EXISTEN ?? row.STOCK ?? 0);
-          row.EXISTENCIA = cur + m.Cantidad;
+          const next = Number((cur + m.Cantidad).toFixed(4));
+          row.EXISTENCIA = next;
+          (row as any).EXISTEN = next;
+          (row as any).STOCK = next;
         }
       }
 
@@ -255,7 +261,9 @@ const appReducer = (state: AppState, action: Action): AppState => {
         const idx = index.get(`${key}|${u.SucursalId}`);
         if (idx !== undefined) {
           const row = clone[idx];
-          row.A_PEDIR = u.NuevoAPedir;
+          const next = Number(u.NuevoAPedir.toFixed(4));
+          row.A_PEDIR = next;
+          (row as any).APEDIR = next;
         }
       }
 

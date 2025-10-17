@@ -164,13 +164,10 @@ function DrugstoresContent() {
       // Precio unitario
       const unitPrice = toNum((p as any).VALOR_UNIT ?? (p as any).VALOR_UNITARIO ?? (p as any).PRECIO);
 
-      if (aPedirConv === null && existenciaConv === null && ventasConv === null) {
-        // no se puede convertir nada: mantén la unidad original como base
-        base = unitRaw as any;
-        aPedirConv = aPedirRaw;
-        existenciaConv = existenciaRaw;
-        ventasConv = ventasRaw;
-      }
+      // Fallback por campo: si alguna conversión falla, usa el valor bruto para no perder cantidades
+      if (aPedirConv === null) aPedirConv = aPedirRaw;
+      if (existenciaConv === null) existenciaConv = existenciaRaw;
+      if (ventasConv === null) ventasConv = ventasRaw;
 
       const key = `${code}|${desc}|${base}|${fam}`;
 
@@ -272,7 +269,8 @@ function DrugstoresContent() {
     
     const XLSX = await import("xlsx");
     const ds = drugstores.find((d) => d.id === drugstoreId);
-    const rows = byDrugstore[drugstoreId] ?? [];
+    const rowsAll = byDrugstore[drugstoreId] ?? [];
+    const rows = rowsAll.filter(r => Number((r as any).TOTAL ?? 0) > 0);
     const branchDefs = pharmacies.map((p) => ({ id: p.id, name: p.name }));
 
     // Confirmación: aplicar conversiones solo en el archivo, con conteo y preferencia de sesión
@@ -375,7 +373,7 @@ function DrugstoresContent() {
 
   const handleExportPdf = (drugstoreId: string, skipPrompt = false) => {
     const ds = drugstores.find((d) => d.id === drugstoreId);
-    const rows = byDrugstore[drugstoreId] ?? [];
+    const rows = (byDrugstore[drugstoreId] ?? []).filter(r => Number((r as any).TOTAL ?? 0) > 0);
     const branchDefs = pharmacies.map((p) => ({ id: p.id, name: p.name }));
 
     // Confirmación: aplicar conversiones con preferencia de sesión (igual que Excel)
@@ -564,13 +562,15 @@ function DrugstoresContent() {
 
       {(selected === "all" ? drugstores.map((d) => d.id) : [selected]).map((dsId) => {
         const ds = drugstores.find((d) => d.id === dsId);
-        const rows = byDrugstore[dsId] ?? [];
+        const rowsAll = byDrugstore[dsId] ?? [];
+        const rows = rowsAll.filter(r => Number(((r as any).TOTAL) ?? 0) > 0);
         if (rows.length === 0) return null;
         return (
           <Card key={dsId}>
             <CardHeader>
               <CardTitle>{ds?.name ?? dsId}</CardTitle>
             </CardHeader>
+
             <CardContent className="overflow-x-auto">
                 <ProductDataTable
                   columns={makeDrugstoreColumns(branchesForColumns)}

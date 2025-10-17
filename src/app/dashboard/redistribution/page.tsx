@@ -151,8 +151,20 @@ export default function RedistributionPage() {
       const unitRaw = String(p.UNI_MED ?? p.UNIDAD ?? p.unit ?? "").trim();
       let base = baseCanonicalFor(unitRaw);
 
-      const aPedir = toNum(p.A_PEDIR ?? p.APEDIR);
-      const exist = toNum(p.EXISTENCIA ?? p.EXISTEN ?? p.STOCK);
+      const aPedirRaw = toNum(p.A_PEDIR ?? p.APEDIR);
+      const existRaw = toNum(p.EXISTENCIA ?? p.EXISTEN ?? p.STOCK);
+      let aPedirConv = convertQuantity(aPedirRaw, unitRaw, base);
+      let existConv = convertQuantity(existRaw, unitRaw, base);
+      // Fallback por campo: si una conversión falla, usar el valor bruto
+      if (aPedirConv === null && existConv === null) {
+        // si ninguna conversión es posible, mantener la unidad original como base
+        base = unitRaw as any;
+        aPedirConv = aPedirRaw;
+        existConv = existRaw;
+      } else {
+        if (aPedirConv === null) aPedirConv = aPedirRaw;
+        if (existConv === null) existConv = existRaw;
+      }
 
       const key = `${code}|${desc}|${base}`;
       const arr = buckets.get(drugstoreId) ?? [];
@@ -168,8 +180,8 @@ export default function RedistributionPage() {
       }
       const branch = String(p.pharmacy ?? "");
       if (branch) {
-        row[`${branch}_APEDIR`] += aPedir;
-        row[`${branch}_EXISTENCIA`] += exist;
+        row[`${branch}_APEDIR`] += aPedirConv ?? 0;
+        row[`${branch}_EXISTENCIA`] += existConv ?? 0;
       }
     }
 
