@@ -18,11 +18,15 @@ export default function MoveProductPage() {
 
   const [query, setQuery] = useState("");
   const [key, setKey] = useState<string>("");
-  const [dstDrugstore, setDstDrugstore] = useState<string>("");
-  const [dstFamily, setDstFamily] = useState<string>("");
-  const [newFamily, setNewFamily] = useState<string>("");
+  // Reasignación (producto individual)
+  const [reDstDrugstore, setReDstDrugstore] = useState<string>("");
+  const [reDstFamily, setReDstFamily] = useState<string>("");
+  const [reNewFamily, setReNewFamily] = useState<string>("");
   // Mover familia (origen)
   const [srcFamily, setSrcFamily] = useState<string>("");
+  // Mover familia (destino)
+  const [famDstDrugstore, setFamDstDrugstore] = useState<string>("");
+  const [famNewFamily, setFamNewFamily] = useState<string>("");
 
   const suggestions = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -55,16 +59,16 @@ export default function MoveProductPage() {
 
   // Families available for the selected drugstore, taken from JSON mapping
   const familiesForDst = useMemo(() => {
-    if (!dstDrugstore) return [] as string[];
+    if (!reDstDrugstore) return [] as string[];
     const set = new Set<string>();
     const data = (defaultMap as Array<{ LABORATORIO: string; DROGUERIA: string }>);
     for (const row of data) {
       const dslug = slugLocal(String(row.DROGUERIA || ""));
       const fam = String(row.LABORATORIO || "").trim();
-      if (dslug === dstDrugstore && fam) set.add(fam);
+      if (dslug === reDstDrugstore && fam) set.add(fam);
     }
     return Array.from(set).sort((a,b)=>a.localeCompare(b));
-  }, [dstDrugstore]);
+  }, [reDstDrugstore]);
 
   // Familias disponibles (origen) basadas en los productos cargados
   const availableFamilies = useMemo(() => {
@@ -76,11 +80,11 @@ export default function MoveProductPage() {
     return Array.from(set).sort((a,b)=>a.localeCompare(b));
   }, [products]);
 
-  // Reset family inputs when drugstore changes
+  // Reset family inputs when Reasignación drugstore changes
   useEffect(() => {
-    setDstFamily("");
-    setNewFamily("");
-  }, [dstDrugstore]);
+    setReDstFamily("");
+    setReNewFamily("");
+  }, [reDstDrugstore]);
 
   return (
     <div className="space-y-8">
@@ -130,8 +134,8 @@ export default function MoveProductPage() {
             <div>
               <label className="text-sm block mb-1">Droguería destino</label>
               <SearchableSelect
-                value={dstDrugstore}
-                onChange={setDstDrugstore}
+                value={reDstDrugstore}
+                onChange={setReDstDrugstore}
                 options={drugstores.map(d=> ({ value: d.id, label: d.name }))}
                 placeholder="Selecciona droguería"
                 searchPlaceholder="Buscar droguería..."
@@ -141,8 +145,8 @@ export default function MoveProductPage() {
             <div>
               <label className="text-sm block mb-1">Familia/Laboratorio destino</label>
               <SearchableSelect
-                value={dstFamily}
-                onChange={setDstFamily}
+                value={reDstFamily}
+                onChange={setReDstFamily}
                 options={familiesForDst.map(name => ({ value: name, label: name }))}
                 placeholder="Selecciona familia"
                 searchPlaceholder="Buscar familia..."
@@ -151,7 +155,7 @@ export default function MoveProductPage() {
             </div>
             <div>
               <label className="text-sm block mb-1">Nueva familia (opcional)</label>
-              <Input value={newFamily} onChange={(e)=>setNewFamily(e.target.value)} placeholder="Escribe una nueva familia" />
+              <Input value={reNewFamily} onChange={(e)=>setReNewFamily(e.target.value)} placeholder="Escribe una nueva familia" />
               <div className="text-xs text-muted-foreground mt-1">Si escribes una nueva, tendrá prioridad sobre la seleccionada.</div>
             </div>
           </div>
@@ -159,9 +163,9 @@ export default function MoveProductPage() {
             <Button
               onClick={() => {
                 if (!key) return;
-                if (!dstDrugstore) return; // droguería destino es obligatoria
-                const family = (newFamily && newFamily.trim()) ? newFamily.trim() : (dstFamily || undefined);
-                dispatch({ type: "SET_PRODUCT_OVERRIDE", payload: { key, override: { drugstoreId: dstDrugstore, laboratory: family } } });
+                if (!reDstDrugstore) return; // droguería destino es obligatoria
+                const family = (reNewFamily && reNewFamily.trim()) ? reNewFamily.trim() : (reDstFamily || undefined);
+                dispatch({ type: "SET_PRODUCT_OVERRIDE", payload: { key, override: { drugstoreId: reDstDrugstore, laboratory: family } } });
               }}
             >
               Guardar cambio
@@ -197,8 +201,8 @@ export default function MoveProductPage() {
             <div>
               <label className="text-sm block mb-1">Droguería destino</label>
               <SearchableSelect
-                value={dstDrugstore}
-                onChange={setDstDrugstore}
+                value={famDstDrugstore}
+                onChange={setFamDstDrugstore}
                 options={drugstores.map(d=> ({ value: d.id, label: d.name }))}
                 placeholder="Selecciona droguería"
                 searchPlaceholder="Buscar droguería..."
@@ -206,7 +210,7 @@ export default function MoveProductPage() {
             </div>
             <div>
               <label className="text-sm block mb-1">Nuevo nombre de familia (opcional)</label>
-              <Input value={newFamily} onChange={(e)=>setNewFamily(e.target.value)} placeholder="Escribe una nueva familia" />
+              <Input value={famNewFamily} onChange={(e)=>setFamNewFamily(e.target.value)} placeholder="Escribe una nueva familia" />
               <div className="text-xs text-muted-foreground mt-1">Si escribes una nueva, se aplicará a todos los productos de la familia.</div>
             </div>
           </div>
@@ -215,8 +219,8 @@ export default function MoveProductPage() {
               onClick={() => {
                 const fam = (srcFamily || '').trim();
                 if (!fam) return;
-                if (!dstDrugstore) return;
-                const finalFamily = (newFamily && newFamily.trim()) ? newFamily.trim() : fam;
+                if (!famDstDrugstore) return;
+                const finalFamily = (famNewFamily && famNewFamily.trim()) ? famNewFamily.trim() : fam;
                 // Aplicar override a todos los productos de la familia
                 const keysApplied: string[] = [];
                 for (const p of products as any[]) {
@@ -227,16 +231,16 @@ export default function MoveProductPage() {
                   const k = code || desc;
                   if (!k) continue;
                   keysApplied.push(k);
-                  dispatch({ type: 'SET_PRODUCT_OVERRIDE', payload: { key: k, override: { drugstoreId: dstDrugstore, laboratory: finalFamily } } });
+                  dispatch({ type: 'SET_PRODUCT_OVERRIDE', payload: { key: k, override: { drugstoreId: famDstDrugstore, laboratory: finalFamily } } });
                 }
                 // Actualizar familyMap para la familia
                 const nextMap = [
                   ...familyMap.filter(e => e.family !== fam),
-                  { family: finalFamily, drugstoreId: dstDrugstore },
+                  { family: finalFamily, drugstoreId: famDstDrugstore },
                 ];
                 dispatch({ type: 'SET_FAMILY_MAP', payload: nextMap });
               }}
-              disabled={!srcFamily || !dstDrugstore}
+              disabled={!srcFamily || !famDstDrugstore}
             >
               Mover familia
             </Button>
