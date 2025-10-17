@@ -43,6 +43,7 @@ export function SearchableSelect({
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => { setMounted(true); }, []);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
   const [open, setOpen] = React.useState(alwaysOpen);
   React.useEffect(() => { setOpen(alwaysOpen); }, [alwaysOpen]);
   const filtered = React.useMemo(() => {
@@ -52,6 +53,14 @@ export function SearchableSelect({
   }, [options, query]);
 
   const current = options.find((o) => o.value === value) || null;
+  // Mantener el input sincronizado con la etiqueta seleccionada
+  React.useEffect(() => {
+    if (current) {
+      setQuery(current.label);
+    } else {
+      setQuery("");
+    }
+  }, [value, options.length]);
 
   return (
     <div className={cn("w-full", contentClassName)} ref={containerRef}>
@@ -75,8 +84,12 @@ export function SearchableSelect({
                 }
               }, 100);
             }}
+            ref={inputRef}
           />
         </div>
+        {current && (
+          <div className="px-3 pb-1 text-xs text-muted-foreground">Seleccionado: <span className="font-medium">{current.label}</span></div>
+        )}
         {mounted && (alwaysOpen || open) ? (
           <div className={cn("border-t overflow-auto bg-card", maxHeightClass)}>
             {filtered.length === 0 ? (
@@ -93,6 +106,7 @@ export function SearchableSelect({
                   onClick={() => {
                     if (!opt.disabled && !disabled) {
                       onChange(opt.value);
+                      setQuery(opt.label);
                       if (closeOnSelect && !alwaysOpen) setOpen(false);
                     }
                   }}
