@@ -58,6 +58,30 @@ function buildPlan(params: {
     for (const [id, data] of Object.entries(group.perBranch)) {
       const { need, stock } = data;
       const covered = Math.min(need, stock);
+      // Registrar como "traslado" de la misma sucursal a sí misma para visibilidad
+      if (covered > 0) {
+        const movedAdj = Math.max(0, Number(covered.toFixed(4)));
+        const stocks: Record<string, number> = Object.fromEntries(
+          Object.entries(group.perBranch).map(([bid, v]) => [bid, v.stock])
+        );
+        plan.push({
+          CODIGO: info.CODIGO,
+          Producto: info.Producto,
+          Drogueria: info.__drugstoreName,
+          From: pharmacies.find(p=>p.id===id)?.name || id,
+          FromId: id,
+          To: pharmacies.find(p=>p.id===id)?.name || id,
+          ToId: id,
+          Cantidad: movedAdj,
+          UNI_MED: info.UNI_MED,
+          Stocks: stocks,
+          NeedDestino: need,
+          LocalCubierto: movedAdj,
+          DeficitAntes: Number(need.toFixed(4)),
+          DeficitDespues: Math.max(0, Number((need - movedAdj).toFixed(4))),
+          Key: info.__key,
+        });
+      }
       // Actualizamos el stock restando lo que se usó para cubrir la demanda local
       group.perBranch[id].stock -= covered;
       group.perBranch[id].need = Math.max(0, need - covered);
