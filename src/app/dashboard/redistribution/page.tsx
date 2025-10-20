@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { useAppDispatch, useAppState } from "@/lib/store";
 import { resolveDrugstoreIdByFamily } from "@/lib/drugstores";
 import { baseCanonicalFor, convertQuantity } from "@/lib/units";
@@ -146,6 +146,7 @@ export default function RedistributionPage() {
   const dispatch = useAppDispatch();
 
   const [selectedDrugstore, setSelectedDrugstore] = useState<string>("all");
+  const summaryRef = useRef<HTMLDivElement>(null);
   const [buffers, setBuffers] = useState<Record<string, number>>(() => {
     const init: Record<string, number> = {};
     for (const p of pharmacies) init[p.id] = 0; // reserva mínima para no dejar en 0
@@ -567,6 +568,13 @@ export default function RedistributionPage() {
               ))}
             </SelectContent>
           </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          >
+            Ir a Resumen por producto
+          </Button>
         </div>
       </div>
 
@@ -639,6 +647,7 @@ export default function RedistributionPage() {
         </CardContent>
       </Card>
 
+      <div ref={summaryRef} />
       <Card>
         <CardHeader><CardTitle>Resumen por producto (existencias, a pedir y transferencias)</CardTitle></CardHeader>
         <CardContent>
