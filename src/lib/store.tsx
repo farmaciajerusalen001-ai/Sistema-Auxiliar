@@ -267,6 +267,18 @@ const appReducer = (state: AppState, action: Action): AppState => {
         }
       }
 
+      // Normalización final: eliminar residuos flotantes y asegurar no-negativos
+      for (const row of clone as any[]) {
+        const ap = Number(row.A_PEDIR ?? row.APEDIR ?? 0);
+        const apNorm = Math.abs(ap) < 1e-4 ? 0 : Number(ap.toFixed(4));
+        row.A_PEDIR = apNorm;
+        row.APEDIR = apNorm;
+        const ex = Number(row.EXISTENCIA ?? row.EXISTEN ?? row.STOCK ?? 0);
+        const exNorm = Math.max(0, Number(ex.toFixed(4)));
+        row.EXISTENCIA = exNorm;
+        row.EXISTEN = exNorm;
+        row.STOCK = exNorm;
+      }
       return { ...state, products: clone };
     }
     default:
