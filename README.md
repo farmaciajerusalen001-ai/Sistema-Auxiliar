@@ -12,4 +12,5 @@ Sistema de implementación de pedidos.
 - Crear el entorno web y la parte del sistema en la nube
 - Reparar la parte de la compra final
 - Reparar la parte de la exportación en el sistema de que p´roductos que tengan 0 no los exporte
-
+- Asignacion de sistemas agregar dorguerias y productos
+- Asignacion de productos a droguerias

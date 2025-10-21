@@ -29,6 +29,11 @@ export default function MoveProductPage() {
   const [famDstDrugstore, setFamDstDrugstore] = useState<string>("");
   const [famNewFamily, setFamNewFamily] = useState<string>("");
 
+  // Admin: crear droguería y agregar familia
+  const [newDsName, setNewDsName] = useState<string>("");
+  const [famAddDrugstoreId, setFamAddDrugstoreId] = useState<string>("");
+  const [famAddName, setFamAddName] = useState<string>("");
+
   const suggestions = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (q.length < 2) return [] as Array<{ key: string; label: string; currentDs: string; currentFam: string }>
@@ -177,6 +182,69 @@ export default function MoveProductPage() {
             >
               Quitar override
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Administrar droguerías y familias */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Administrar Droguerías y Familias</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Crear nueva Droguería</div>
+              <Input placeholder="Nombre de la droguería" value={newDsName} onChange={(e)=>setNewDsName(e.target.value)} />
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => {
+                    const name = newDsName.trim();
+                    if (!name) return;
+                    const id = slugLocal(name) || 'sin-drogueria';
+                    if (drugstores.some(d=>d.id===id)) { alert('La droguería ya existe.'); return; }
+                    const next = [{ id: 'sin-drogueria', name: 'Sin Droguería' }, ...drugstores.filter(d=>d.id!=='sin-drogueria'), { id, name }]
+                      .filter((v,i,a)=> a.findIndex(x=>x.id===v.id)===i);
+                    dispatch({ type: 'SET_DRUGSTORES', payload: next });
+                    setNewDsName("");
+                  }}
+                >
+                  Agregar Droguería
+                </Button>
+              </div>
+              <div className="text-xs text-muted-foreground">Se agrega al catálogo vivo (persistido en IndexedDB).</div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Agregar Familia a una Droguería</div>
+              <SearchableSelect
+                value={famAddDrugstoreId}
+                onChange={setFamAddDrugstoreId}
+                options={drugstores.map(d=> ({ value: d.id, label: d.name }))}
+                placeholder="Selecciona droguería"
+                searchPlaceholder="Buscar droguería..."
+              />
+              <Input placeholder="Nombre de la familia/laboratorio" value={famAddName} onChange={(e)=>setFamAddName(e.target.value)} />
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    const fam = famAddName.trim();
+                    const dsId = famAddDrugstoreId;
+                    if (!fam || !dsId) return;
+                    const exists = familyMap.some(e => e.family.trim().toUpperCase() === fam.toUpperCase());
+                    const next = exists
+                      ? familyMap.map(e => e.family.trim().toUpperCase() === fam.toUpperCase() ? { family: fam, drugstoreId: dsId } : e)
+                      : [...familyMap, { family: fam, drugstoreId: dsId }];
+                    dispatch({ type: 'SET_FAMILY_MAP', payload: next });
+                    setFamAddName("");
+                  }}
+                >
+                  Agregar Familia
+                </Button>
+              </div>
+              <div className="text-xs text-muted-foreground">El mapeo afecta la clasificación en “Droguerías”.</div>
+            </div>
           </div>
         </CardContent>
       </Card>
