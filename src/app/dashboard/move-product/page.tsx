@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import defaultMap from "@/lib/drugstores-default.json" assert { type: "json" };
 import { idbGet, idbSet } from "@/lib/idb";
+import Link from "next/link";
 
 export default function MoveProductPage() {
   const { products, drugstores, familyMap, laboratories, productOverrides } = useAppState();
@@ -97,6 +98,11 @@ export default function MoveProductPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight font-headline">Mover producto</h1>
         <p className="text-muted-foreground">Reasigna un producto a otra Droguería y/o Familia (Laboratorio) sin tocar los datos originales.</p>
+        <div className="mt-3">
+          <Link href="/dashboard/admin-drugstores" className="inline-block">
+            <Button variant="outline" size="sm">Ir a administrar Droguerías y Familias</Button>
+          </Link>
+        </div>
       </div>
       <Card>
         <CardHeader>
@@ -186,149 +192,7 @@ export default function MoveProductPage() {
         </CardContent>
       </Card>
 
-      {/* Administrar droguerías y familias */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Administrar Droguerías y Familias</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <div className="text-sm font-medium">Crear nueva Droguería</div>
-              <Input placeholder="Nombre de la droguería" value={newDsName} onChange={(e)=>setNewDsName(e.target.value)} />
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => {
-                    const name = newDsName.trim();
-                    if (!name) return;
-                    const id = slugLocal(name) || 'sin-drogueria';
-                    if (drugstores.some(d=>d.id===id)) { alert('La droguería ya existe.'); return; }
-                    const next = [{ id: 'sin-drogueria', name: 'Sin Droguería' }, ...drugstores.filter(d=>d.id!=='sin-drogueria'), { id, name }]
-                      .filter((v,i,a)=> a.findIndex(x=>x.id===v.id)===i);
-                    dispatch({ type: 'SET_DRUGSTORES', payload: next });
-                    setNewDsName("");
-                  }}
-                >
-                  Agregar Droguería
-                </Button>
-              </div>
-              <div className="text-xs text-muted-foreground">Se agrega al catálogo vivo (persistido en IndexedDB).</div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="text-sm font-medium">Agregar Familia a una Droguería</div>
-              <SearchableSelect
-                value={famAddDrugstoreId}
-                onChange={setFamAddDrugstoreId}
-                options={drugstores.map(d=> ({ value: d.id, label: d.name }))}
-                placeholder="Selecciona droguería"
-                searchPlaceholder="Buscar droguería..."
-              />
-              <Input placeholder="Nombre de la familia/laboratorio" value={famAddName} onChange={(e)=>setFamAddName(e.target.value)} />
-              <div className="flex gap-2">
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    const fam = famAddName.trim();
-                    const dsId = famAddDrugstoreId;
-                    if (!fam || !dsId) return;
-                    const exists = familyMap.some(e => e.family.trim().toUpperCase() === fam.toUpperCase());
-                    const next = exists
-                      ? familyMap.map(e => e.family.trim().toUpperCase() === fam.toUpperCase() ? { family: fam, drugstoreId: dsId } : e)
-                      : [...familyMap, { family: fam, drugstoreId: dsId }];
-                    dispatch({ type: 'SET_FAMILY_MAP', payload: next });
-                    setFamAddName("");
-                  }}
-                >
-                  Agregar Familia
-                </Button>
-              </div>
-              <div className="text-xs text-muted-foreground">El mapeo afecta la clasificación en “Droguerías”.</div>
-            </div>
-          </div>
-
-          {/* Listar y eliminar Droguerías (excepto sin-drogueria) */}
-          <div className="mt-6">
-            <div className="text-sm font-medium mb-2">Droguerías actuales</div>
-            <div className="overflow-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left">
-                    <th className="py-2 pr-2">Nombre</th>
-                    <th className="py-2 pr-2">ID</th>
-                    <th className="py-2 pr-2">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {drugstores.filter(d=>d.id!=="sin-drogueria").map(d=> (
-                    <tr key={d.id} className="border-t">
-                      <td className="py-2 pr-2">{d.name}</td>
-                      <td className="py-2 pr-2">{d.id}</td>
-                      <td className="py-2 pr-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            const ok = window.confirm(`¿Eliminar la droguería "${d.name}"? Las familias mapeadas a esta droguería se asignarán a "Sin Droguería".`);
-                            if (!ok) return;
-                            const nextDs = drugstores.filter(x => x.id !== d.id);
-                            const nextMap = familyMap.map(e => (e.drugstoreId === d.id ? { ...e, drugstoreId: 'sin-drogueria' } : e));
-                            dispatch({ type: 'SET_DRUGSTORES', payload: nextDs });
-                            dispatch({ type: 'SET_FAMILY_MAP', payload: nextMap });
-                          }}
-                        >
-                          Eliminar
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Listar y eliminar Familias (map entries) */}
-          <div className="mt-6">
-            <div className="text-sm font-medium mb-2">Familias mapeadas</div>
-            <div className="overflow-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left">
-                    <th className="py-2 pr-2">Familia</th>
-                    <th className="py-2 pr-2">Droguería</th>
-                    <th className="py-2 pr-2">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {familyMap.map((e, idx) => {
-                    const dsName = drugstores.find(d=>d.id===e.drugstoreId)?.name || e.drugstoreId;
-                    return (
-                      <tr key={`${e.family}-${idx}`} className="border-t">
-                        <td className="py-2 pr-2">{e.family}</td>
-                        <td className="py-2 pr-2">{dsName}</td>
-                        <td className="py-2 pr-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              const ok = window.confirm(`¿Eliminar la familia "${e.family}" del mapeo?`);
-                              if (!ok) return;
-                              const next = familyMap.filter((x,i)=> i!==idx);
-                              dispatch({ type: 'SET_FAMILY_MAP', payload: next });
-                            }}
-                          >
-                            Eliminar
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      
 
       {/* Mover familia completa */}
       <Card>
