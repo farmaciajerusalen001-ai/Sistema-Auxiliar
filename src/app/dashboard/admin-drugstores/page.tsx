@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useMemo, useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 function slugLocal(s: string) {
   return String(s || "").trim().toLowerCase()
@@ -168,81 +169,79 @@ export default function AdminDrugstoresPage() {
         </CardContent>
       </Card>
 
-      {editDsId && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Editar Droguería</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-4xl">
-              <div className="md:col-span-2">
-                <label className="text-sm block mb-1">Nombre de la droguería</label>
-                <Input value={editDsName} onChange={(e)=>setEditDsName(e.target.value)} />
-              </div>
-              <div className="flex items-end gap-2">
-                <Button
-                  onClick={() => {
-                    const name = editDsName.trim();
-                    if (!name) return;
-                    const next = drugstores.map(d => d.id === editDsId ? { ...d, name } : d);
-                    dispatch({ type: 'SET_DRUGSTORES', payload: next });
-                    alert('Droguería actualizada');
-                  }}
-                >
-                  Guardar cambios
-                </Button>
-                <Button variant="outline" onClick={()=>{ setEditDsId(""); setEditDsName(""); setFamRename({}); }}>Cerrar</Button>
-              </div>
+      <Dialog open={!!editDsId} onOpenChange={(o)=>{ if(!o){ setEditDsId(""); setEditDsName(""); setFamRename({}); } }}>
+        <DialogContent className="max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>Editar Droguería</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="md:col-span-2">
+              <label className="text-sm block mb-1">Nombre de la droguería</label>
+              <Input value={editDsName} onChange={(e)=>setEditDsName(e.target.value)} />
             </div>
+            <div className="flex items-end gap-2">
+              <Button
+                onClick={() => {
+                  const name = editDsName.trim();
+                  if (!name) return;
+                  const next = drugstores.map(d => d.id === editDsId ? { ...d, name } : d);
+                  dispatch({ type: 'SET_DRUGSTORES', payload: next });
+                  alert('Droguería actualizada');
+                }}
+              >
+                Guardar cambios
+              </Button>
+              <Button variant="outline" onClick={()=>{ setEditDsId(""); setEditDsName(""); setFamRename({}); }}>Cerrar</Button>
+            </div>
+          </div>
 
-            <div className="mt-6">
-              <div className="text-sm font-medium mb-2">Familias de esta droguería</div>
-              <div className="overflow-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left">
-                      <th className="py-2 pr-2">Familia (actual)</th>
-                      <th className="py-2 pr-2">Nuevo nombre</th>
-                      <th className="py-2 pr-2">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {familyMap.filter(e=>e.drugstoreId===editDsId).map((e, idx) => {
-                      const key = e.family;
-                      const nextName = famRename[key] ?? e.family;
-                      return (
-                        <tr key={`${e.family}-${idx}`} className="border-t">
-                          <td className="py-2 pr-2">{e.family}</td>
-                          <td className="py-2 pr-2">
-                            <Input
-                              value={nextName}
-                              onChange={(ev)=>setFamRename(prev=>({ ...prev, [key]: ev.target.value }))}
-                            />
-                          </td>
-                          <td className="py-2 pr-2">
-                            <Button
-                              size="sm"
-                              onClick={() => {
-                                const newName = (famRename[key] ?? e.family).trim();
-                                if (!newName) return;
-                                const updated = familyMap.map(f => f.family === e.family ? { ...f, family: newName } : f);
-                                dispatch({ type: 'SET_FAMILY_MAP', payload: updated });
-                                setFamRename(prev=> ({ ...prev, [key]: newName }));
-                              }}
-                            >
-                              Guardar
-                            </Button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+          <div className="mt-6">
+            <div className="text-sm font-medium mb-2">Familias de esta droguería</div>
+            <div className="overflow-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left">
+                    <th className="py-2 pr-2">Familia (actual)</th>
+                    <th className="py-2 pr-2">Nuevo nombre</th>
+                    <th className="py-2 pr-2">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {familyMap.filter(e=>e.drugstoreId===editDsId).map((e, idx) => {
+                    const key = e.family;
+                    const nextName = famRename[key] ?? e.family;
+                    return (
+                      <tr key={`${e.family}-${idx}`} className="border-t">
+                        <td className="py-2 pr-2">{e.family}</td>
+                        <td className="py-2 pr-2">
+                          <Input
+                            value={nextName}
+                            onChange={(ev)=>setFamRename(prev=>({ ...prev, [key]: ev.target.value }))}
+                          />
+                        </td>
+                        <td className="py-2 pr-2">
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              const newName = (famRename[key] ?? e.family).trim();
+                              if (!newName) return;
+                              const updated = familyMap.map(f => f.family === e.family ? { ...f, family: newName } : f);
+                              dispatch({ type: 'SET_FAMILY_MAP', payload: updated });
+                              setFamRename(prev=> ({ ...prev, [key]: newName }));
+                            }}
+                          >
+                            Guardar
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader>
