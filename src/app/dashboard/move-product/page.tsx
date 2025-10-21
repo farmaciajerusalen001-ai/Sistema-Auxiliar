@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 // import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import defaultMap from "@/lib/drugstores-default.json" assert { type: "json" };
+import { idbGet, idbSet } from "@/lib/idb";
 
 export default function MoveProductPage() {
   const { products, drugstores, familyMap, laboratories, productOverrides } = useAppState();
@@ -249,7 +250,45 @@ export default function MoveProductPage() {
       </Card>
       {mounted && Object.keys(productOverrides).length > 0 && (
         <Card>
-          <CardHeader><CardTitle>Overrides activos</CardTitle></CardHeader>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <CardTitle>Overrides activos</CardTitle>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      await idbSet('pharmaPermanentOverrides', productOverrides);
+                      alert('Overrides guardados como permanentes. Se aplicarán automáticamente en futuros procesos.');
+                    } catch {
+                      alert('No fue posible guardar los overrides permanentes.');
+                    }
+                  }}
+                >
+                  Guardar como permanentes
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      const perm = await idbGet<Record<string, { drugstoreId?: string; laboratory?: string }>>('pharmaPermanentOverrides');
+                      if (perm && Object.keys(perm).length > 0) {
+                        dispatch({ type: 'MERGE_PRODUCT_OVERRIDES', payload: perm });
+                        alert('Overrides permanentes aplicados.');
+                      } else {
+                        alert('No hay overrides permanentes guardados.');
+                      }
+                    } catch {
+                      alert('No fue posible cargar los overrides permanentes.');
+                    }
+                  }}
+                >
+                  Aplicar permanentes ahora
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
           <CardContent>
             <div className="overflow-auto">
               <table className="w-full text-sm">

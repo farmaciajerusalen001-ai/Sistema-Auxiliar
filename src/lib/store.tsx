@@ -38,6 +38,7 @@ type Action =
   | { type: "REMOVE_CONVERSION"; payload: { key: string } }
   | { type: "CLEAR_CONVERSIONS" }
   | { type: "SET_PRODUCT_OVERRIDE"; payload: { key: string; override: { drugstoreId?: string; laboratory?: string } } }
+  | { type: "MERGE_PRODUCT_OVERRIDES"; payload: Record<string, { drugstoreId?: string; laboratory?: string }> }
   | { type: "CLEAR_PRODUCT_OVERRIDE"; payload: { key: string } }
   | { type: "CLEAR_ALL_DATA" }
   | { type: "SET_DRUGSTORES_DATA"; payload: { drugstores: { id: string; name: string }[]; familyMap: { family: string; drugstoreId: string }[] } }
@@ -166,6 +167,10 @@ const appReducer = (state: AppState, action: Action): AppState => {
     case "SET_PRODUCT_OVERRIDE": {
       const { key, override } = action.payload;
       return { ...state, productOverrides: { ...state.productOverrides, [key]: { ...state.productOverrides[key], ...override } } };
+    }
+    case "MERGE_PRODUCT_OVERRIDES": {
+      const incoming = action.payload || {};
+      return { ...state, productOverrides: { ...state.productOverrides, ...incoming } };
     }
     case "CLEAR_PRODUCT_OVERRIDE": {
       const { key } = action.payload;
@@ -362,6 +367,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             } as Partial<AppState>,
           });
         }
+        // 3) Cargar overrides permanentes y fusionarlos si hay productos cargados
+        try {
+          const perm = await idbGet<Record<string, { drugstoreId?: string; laboratory?: string }>>('pharmaPermanentOverrides');
+          if (perm && Object.keys(perm).length > 0) {
+            // Aplicar al estado actual (no bloqueante si no hay productos)
+            dispatch({ type: 'MERGE_PRODUCT_OVERRIDES', payload: perm });
+          }
+        } catch {}
       } catch {}
     })();
   }, []);
