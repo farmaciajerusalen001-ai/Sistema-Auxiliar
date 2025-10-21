@@ -246,6 +246,87 @@ export default function MoveProductPage() {
               <div className="text-xs text-muted-foreground">El mapeo afecta la clasificación en “Droguerías”.</div>
             </div>
           </div>
+
+          {/* Listar y eliminar Droguerías (excepto sin-drogueria) */}
+          <div className="mt-6">
+            <div className="text-sm font-medium mb-2">Droguerías actuales</div>
+            <div className="overflow-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left">
+                    <th className="py-2 pr-2">Nombre</th>
+                    <th className="py-2 pr-2">ID</th>
+                    <th className="py-2 pr-2">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {drugstores.filter(d=>d.id!=="sin-drogueria").map(d=> (
+                    <tr key={d.id} className="border-t">
+                      <td className="py-2 pr-2">{d.name}</td>
+                      <td className="py-2 pr-2">{d.id}</td>
+                      <td className="py-2 pr-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const ok = window.confirm(`¿Eliminar la droguería "${d.name}"? Las familias mapeadas a esta droguería se asignarán a "Sin Droguería".`);
+                            if (!ok) return;
+                            const nextDs = drugstores.filter(x => x.id !== d.id);
+                            const nextMap = familyMap.map(e => (e.drugstoreId === d.id ? { ...e, drugstoreId: 'sin-drogueria' } : e));
+                            dispatch({ type: 'SET_DRUGSTORES', payload: nextDs });
+                            dispatch({ type: 'SET_FAMILY_MAP', payload: nextMap });
+                          }}
+                        >
+                          Eliminar
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Listar y eliminar Familias (map entries) */}
+          <div className="mt-6">
+            <div className="text-sm font-medium mb-2">Familias mapeadas</div>
+            <div className="overflow-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left">
+                    <th className="py-2 pr-2">Familia</th>
+                    <th className="py-2 pr-2">Droguería</th>
+                    <th className="py-2 pr-2">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {familyMap.map((e, idx) => {
+                    const dsName = drugstores.find(d=>d.id===e.drugstoreId)?.name || e.drugstoreId;
+                    return (
+                      <tr key={`${e.family}-${idx}`} className="border-t">
+                        <td className="py-2 pr-2">{e.family}</td>
+                        <td className="py-2 pr-2">{dsName}</td>
+                        <td className="py-2 pr-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const ok = window.confirm(`¿Eliminar la familia "${e.family}" del mapeo?`);
+                              if (!ok) return;
+                              const next = familyMap.filter((x,i)=> i!==idx);
+                              dispatch({ type: 'SET_FAMILY_MAP', payload: next });
+                            }}
+                          >
+                            Eliminar
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
