@@ -33,6 +33,9 @@ function buildPlan(params: {
     DeficitDespues: number;
     Key: string;
   };
+
+  // Exporta movimientos por sucursal: una hoja por sucursal con los traslados salientes
+  
   const plan: Move[] = [];
 
   // Group by (drugstore, product key)
@@ -307,6 +310,36 @@ export default function RedistributionPage() {
     XLSX.writeFile(wb, `Redistribucion_${dateStr}.xlsx`);
   };
 
+  // Exporta movimientos por sucursal: una hoja por sucursal con los traslados salientes
+  const exportBranchMovements = async () => {
+    const XLSX = await import("xlsx");
+    const byBranch = new Map<string, Array<[string,string,string,string,string,number,string]>>();
+    for (const m of plan as any[]) {
+      const row: [string,string,string,string,string,number,string] = [
+        m.From,
+        m.CODIGO,
+        m.Producto,
+        m.Drogueria,
+        m.To,
+        Number(m.Cantidad),
+        m.UNI_MED,
+      ];
+      const arr = byBranch.get(m.FromId) ?? [];
+      arr.push(row);
+      byBranch.set(m.FromId, arr);
+    }
+    const wb = XLSX.utils.book_new();
+    const header = ["Sucursal", "CODIGO", "Producto", "Droguería", "A Sucursal", "Cantidad", "Unidad"];
+    for (const ph of pharmacies) {
+      const rows = byBranch.get(ph.id) ?? [];
+      const aoa = [header, ...rows];
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      XLSX.utils.book_append_sheet(wb, ws, ph.name.slice(0, 31));
+    }
+    const dateStr = new Date().toISOString().slice(0,10);
+    XLSX.writeFile(wb, `MovimientosPorSucursal_${dateStr}.xlsx`);
+  };
+
   // Exportar MOVIMIENTOS (plan) a PDF: incluye el resumen por producto (existencias, a pedir, totales, transferencias, reservas)
   const exportMovementsPdf = () => {
     const w = window.open('', '_blank');
@@ -483,6 +516,92 @@ export default function RedistributionPage() {
     }
   };
 
+  const exportBranchMovementsPdf = () => {
+    const w = window.open('', '_blank');
+    if (!w) return;
+    const title = `Farmacia Jerusalen — Movimientos por sucursal`;
+    const style = `
+      <style>
+        body { font-family: Arial, sans-serif; padding: 24px; }
+        h1 { font-size: 18px; margin-bottom: 12px; }
+        h2 { font-size: 16px; margin: 18px 0 8px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+        th, td { border: 1px solid #ddd; padding: 6px; font-size: 12px; }
+        th { background: #f8fafc; text-align: left; }
+        .right { text-align: right; }
+      </style>`;
+    const byBranch = new Map<string, Array<[string,string,string,string,string,number,string]>>();
+    for (const m of plan as any[]) {
+      const row: [string,string,string,string,string,number,string] = [
+        m.From,
+        m.CODIGO,
+        m.Producto,
+        m.Drogueria,
+        m.To,
+        Number(m.Cantidad),
+        m.UNI_MED,
+      ];
+      const arr = byBranch.get(m.FromId) ?? [];
+      arr.push(row);
+      byBranch.set(m.FromId, arr);
+    }
+    const head = ["Sucursal", "CODIGO", "Producto", "Droguería", "A Sucursal", "Cantidad", "Unidad"];
+    let pdfBody = ``;
+    w.document.write(`<html><head><title>${title}</title>${style}</head><body>`);
+    w.document.write(`<h1>${title}</h1>`);
+    pdfBody += `<h1>${title}</h1>`;
+    for (const ph of pharmacies) {
+      const rows = byBranch.get(ph.id) ?? [];
+      w.document.write(`<h2>${ph.name}</h2>`);
+      pdfBody += `<h2>${ph.name}</h2>`;
+      if (rows.length === 0) {
+        w.document.write(`<div class="muted">Sin movimientos.</div>`);
+        pdfBody += `<div class="muted">Sin movimientos.</div>`;
+      } else {
+        w.document.write('<table><thead><tr>' + head.map(c=>`<th>${c}</th>`).join('') + '</tr></thead><tbody>');
+        pdfBody += '<table><thead><tr>' + head.map(c=>`<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+        for (const r of rows) {
+          w.document.write('<tr>' + r.map((c,i)=>`<td class="${i===5?'right':''}">${c}</td>`).join('') + '</tr>');
+          pdfBody += '<tr>' + r.map((c,i)=>`<td class="${i===5?'right':''}">${c}</td>`).join('') + '</tr>';
+        }
+        w.document.write('</tbody></table>');
+        pdfBody += '</tbody></table>';
+      }
+    }
+    w.document.write('</body></html>');
+    w.document.close();
+    w.focus();
+    w.print();
+    const dateStr = new Date().toISOString().slice(0,10);
+    const fileName = `MovimientosPorSucursal_${dateStr}.pdf`;
+    const holder = document.createElement('div');
+    holder.style.position = 'fixed';
+    holder.style.left = '-99999px';
+    holder.style.top = '0';
+    holder.innerHTML = `${style}<div id="pdf-root">${pdfBody}</div>`;
+    document.body.appendChild(holder);
+    const doDownload = () => {
+      const anyWin = window as any;
+      if (anyWin.html2pdf) {
+        const node = document.getElementById('pdf-root');
+        anyWin.html2pdf().from(node).set({
+          filename: fileName,
+          html2canvas: { scale: 2 },
+          jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
+        }).save().then(() => { holder.remove(); }).catch(() => { holder.remove(); });
+      }
+    };
+    if (!(window as any).html2pdf) {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+      s.onload = doDownload;
+      s.onerror = () => {};
+      document.body.appendChild(s);
+    } else {
+      doDownload();
+    }
+  };
+
   const visibleFinal = useMemo(() => {
     return hideZeros ? finalSuggestion.filter((r) => r.NuevoAPedir > 0) : finalSuggestion;
   }, [finalSuggestion, hideZeros]);
@@ -604,6 +723,8 @@ export default function RedistributionPage() {
               <Button variant="outline" onClick={undoRedistribution}>Deshacer</Button>
               <Button variant="secondary" onClick={applyRedistribution} disabled={plan.length===0 && visibleFinal.length===0}>Aplicar redistribución</Button>
               <Button variant="outline" onClick={exportMovementsPdf} disabled={plan.length===0}>Exportar movimientos (PDF)</Button>
+              <Button variant="outline" onClick={exportBranchMovements} disabled={plan.length===0}>Exportar movimientos por sucursal (Excel)</Button>
+              <Button variant="outline" onClick={exportBranchMovementsPdf} disabled={plan.length===0}>Exportar movimientos por sucursal (PDF)</Button>
               <Button onClick={exportFinalSuggestion} disabled={visibleFinal.length===0}>Exportar compra final (Excel)</Button>
             </div>
           </div>
