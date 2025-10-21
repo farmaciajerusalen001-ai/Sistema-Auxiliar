@@ -27,6 +27,8 @@ export default function AdminDrugstoresPage() {
   const [editDsId, setEditDsId] = useState<string>("");
   const [editDsName, setEditDsName] = useState<string>("");
   const [famRename, setFamRename] = useState<Record<string, string>>({});
+  const [editFam, setEditFam] = useState<{ family: string; drugstoreId: string } | null>(null);
+  const [editFamName, setEditFamName] = useState<string>("");
 
   const drugstoresSorted = useMemo(() => {
     const q = dsQuery.trim().toLowerCase();
@@ -170,7 +172,7 @@ export default function AdminDrugstoresPage() {
       </Card>
 
       <Dialog open={!!editDsId} onOpenChange={(o)=>{ if(!o){ setEditDsId(""); setEditDsName(""); setFamRename({}); } }}>
-        <DialogContent className="max-w-5xl">
+        <DialogContent className="w-[95vw] sm:max-w-5xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Droguería</DialogTitle>
           </DialogHeader>
@@ -197,7 +199,7 @@ export default function AdminDrugstoresPage() {
 
           <div className="mt-6">
             <div className="text-sm font-medium mb-2">Familias de esta droguería</div>
-            <div className="overflow-auto">
+            <div className="overflow-auto max-h-[60vh]">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left">
@@ -268,6 +270,16 @@ export default function AdminDrugstoresPage() {
                       <td className="py-2 pr-2">{e.family}</td>
                       <td className="py-2 pr-2">{dsName}</td>
                       <td className="py-2 pr-2">
+                        <Button
+                          size="sm"
+                          className="mr-2"
+                          onClick={() => {
+                            setEditFam({ family: e.family, drugstoreId: e.drugstoreId });
+                            setEditFamName(e.family);
+                          }}
+                        >
+                          Editar
+                        </Button>
                         <Button
                           size="sm"
                           variant="outline"

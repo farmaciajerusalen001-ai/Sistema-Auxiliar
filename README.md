@@ -14,3 +14,7 @@ Sistema de implementación de pedidos.
 - Reparar la parte de la exportación en el sistema de que p´roductos que tengan 0 no los exporte
 - Asignacion de sistemas agregar dorguerias y productos
 - Asignacion de productos a droguerias
+
+
+
+observa COMO ESTA LAVENTANA aparece nesecito que arregles esa parte que se pueda desplasAR hacia arriba  acia abajo 
