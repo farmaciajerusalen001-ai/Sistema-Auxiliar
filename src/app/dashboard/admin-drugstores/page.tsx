@@ -286,7 +286,7 @@ export default function AdminDrugstoresPage() {
                           onClick={() => {
                             const ok = window.confirm(`¿Eliminar la familia "${e.family}" del mapeo?`);
                             if (!ok) return;
-                            const next = familyMap.filter((x,i)=> i!==idx);
+                            const next = familyMap.filter(x => !(x.family === e.family && x.drugstoreId === e.drugstoreId));
                             dispatch({ type: 'SET_FAMILY_MAP', payload: next });
                           }}
                         >
