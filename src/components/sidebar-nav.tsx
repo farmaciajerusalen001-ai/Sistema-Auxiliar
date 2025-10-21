@@ -128,6 +128,19 @@ export function SidebarNav() {
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
+              isActive={isActive("/dashboard/admin-drugstores")}
+              tooltip="Admin Droguerías"
+            >
+              <Link href="/dashboard/admin-drugstores">
+                <Building2 />
+                <span>Admin Droguerías</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
               isActive={isActive("/dashboard/redistribution")}
               tooltip="Redistribución"
             >
