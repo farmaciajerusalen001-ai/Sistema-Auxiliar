@@ -315,6 +315,9 @@ export default function RedistributionPage() {
     const XLSX = await import("xlsx");
     const byBranch = new Map<string, Array<[string,string,string,string,string,number,string]>>();
     for (const m of plan as any[]) {
+      // Filtrar movimientos donde origen y destino son la misma sucursal
+      if (m.FromId === m.ToId) continue;
+      
       const row: [string,string,string,string,string,number,string] = [
         m.From,
         m.CODIGO,
@@ -332,7 +335,41 @@ export default function RedistributionPage() {
     const header = ["Sucursal", "CODIGO", "Producto", "Droguería", "A Sucursal", "Cantidad", "Unidad"];
     for (const ph of pharmacies) {
       const rows = byBranch.get(ph.id) ?? [];
-      const aoa = [header, ...rows];
+      
+      // Agrupar por droguería y calcular totales
+      const byDrugstore = new Map<string, number>();
+      for (const row of rows) {
+        const drugstore = row[3]; // Droguería está en el índice 3
+        const cantidad = row[5]; // Cantidad está en el índice 5
+        byDrugstore.set(drugstore, (byDrugstore.get(drugstore) ?? 0) + cantidad);
+      }
+      
+      // Construir el array con filas agrupadas por droguería y sus totales
+      const aoa: any[] = [header];
+      const drugstoreGroups = new Map<string, typeof rows>();
+      
+      // Agrupar filas por droguería
+      for (const row of rows) {
+        const drugstore = row[3];
+        if (!drugstoreGroups.has(drugstore)) {
+          drugstoreGroups.set(drugstore, []);
+        }
+        drugstoreGroups.get(drugstore)!.push(row);
+      }
+      
+      // Agregar filas por droguería con subtotales
+      for (const [drugstore, drugstoreRows] of drugstoreGroups) {
+        aoa.push(...drugstoreRows);
+        // Fila de subtotal por droguería
+        const subtotal = byDrugstore.get(drugstore) ?? 0;
+        aoa.push(["", "", "", `TOTAL ${drugstore}`, "", subtotal, ""]);
+        aoa.push([]); // Fila vacía para separación
+      }
+      
+      // Total general de la sucursal
+      const totalGeneral = rows.reduce((sum, row) => sum + row[5], 0);
+      aoa.push(["", "", "", "TOTAL GENERAL", "", totalGeneral, ""]);
+      
       const ws = XLSX.utils.aoa_to_sheet(aoa);
       XLSX.utils.book_append_sheet(wb, ws, ph.name.slice(0, 31));
     }
@@ -532,6 +569,9 @@ export default function RedistributionPage() {
       </style>`;
     const byBranch = new Map<string, Array<[string,string,string,string,string,number,string]>>();
     for (const m of plan as any[]) {
+      // Filtrar movimientos donde origen y destino son la misma sucursal
+      if (m.FromId === m.ToId) continue;
+      
       const row: [string,string,string,string,string,number,string] = [
         m.From,
         m.CODIGO,
@@ -558,12 +598,44 @@ export default function RedistributionPage() {
         w.document.write(`<div class="muted">Sin movimientos.</div>`);
         pdfBody += `<div class="muted">Sin movimientos.</div>`;
       } else {
+        // Agrupar por droguería
+        const drugstoreGroups = new Map<string, typeof rows>();
+        const byDrugstore = new Map<string, number>();
+        
+        for (const row of rows) {
+          const drugstore = row[3]; // Droguería está en el índice 3
+          const cantidad = row[5]; // Cantidad está en el índice 5
+          
+          if (!drugstoreGroups.has(drugstore)) {
+            drugstoreGroups.set(drugstore, []);
+          }
+          drugstoreGroups.get(drugstore)!.push(row);
+          byDrugstore.set(drugstore, (byDrugstore.get(drugstore) ?? 0) + cantidad);
+        }
+        
         w.document.write('<table><thead><tr>' + head.map(c=>`<th>${c}</th>`).join('') + '</tr></thead><tbody>');
         pdfBody += '<table><thead><tr>' + head.map(c=>`<th>${c}</th>`).join('') + '</tr></thead><tbody>';
-        for (const r of rows) {
-          w.document.write('<tr>' + r.map((c,i)=>`<td class="${i===5?'right':''}">${c}</td>`).join('') + '</tr>');
-          pdfBody += '<tr>' + r.map((c,i)=>`<td class="${i===5?'right':''}">${c}</td>`).join('') + '</tr>';
+        
+        // Agregar filas por droguería con subtotales
+        for (const [drugstore, drugstoreRows] of drugstoreGroups) {
+          for (const r of drugstoreRows) {
+            w.document.write('<tr>' + r.map((c,i)=>`<td class="${i===5?'right':''}">${c}</td>`).join('') + '</tr>');
+            pdfBody += '<tr>' + r.map((c,i)=>`<td class="${i===5?'right':''}">${c}</td>`).join('') + '</tr>';
+          }
+          // Fila de subtotal por droguería
+          const subtotal = byDrugstore.get(drugstore) ?? 0;
+          w.document.write(`<tr style="font-weight:bold;background:#f0f0f0;"><td colspan="4">TOTAL ${drugstore}</td><td></td><td class="right">${subtotal.toLocaleString(undefined,{maximumFractionDigits:4})}</td><td></td></tr>`);
+          pdfBody += `<tr style="font-weight:bold;background:#f0f0f0;"><td colspan="4">TOTAL ${drugstore}</td><td></td><td class="right">${subtotal.toLocaleString(undefined,{maximumFractionDigits:4})}</td><td></td></tr>`;
+          // Fila vacía para separación
+          w.document.write('<tr><td colspan="7" style="border:none;height:8px;"></td></tr>');
+          pdfBody += '<tr><td colspan="7" style="border:none;height:8px;"></td></tr>';
         }
+        
+        // Total general de la sucursal
+        const totalGeneral = rows.reduce((sum, row) => sum + row[5], 0);
+        w.document.write(`<tr style="font-weight:bold;background:#e0e0e0;"><td colspan="4">TOTAL GENERAL</td><td></td><td class="right">${totalGeneral.toLocaleString(undefined,{maximumFractionDigits:4})}</td><td></td></tr>`);
+        pdfBody += `<tr style="font-weight:bold;background:#e0e0e0;"><td colspan="4">TOTAL GENERAL</td><td></td><td class="right">${totalGeneral.toLocaleString(undefined,{maximumFractionDigits:4})}</td><td></td></tr>`;
+        
         w.document.write('</tbody></table>');
         pdfBody += '</tbody></table>';
       }
