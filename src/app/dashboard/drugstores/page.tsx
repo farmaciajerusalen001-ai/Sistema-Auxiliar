@@ -348,7 +348,19 @@ function DrugstoresContent() {
       });
     });
 
-    const aoa = [header, ...body];
+    // Calcular totales por columna
+    const totalRow = cols.map((id, colIndex) => {
+      if (colIndex === 0) return "TOTAL GENERAL";
+      if (colIndex === 1 || colIndex === 2) return "";
+      
+      // Sumar columnas numéricas (TOTAL, A_PEDIR, EXISTENCIA, VENTAS, VALOR_TOTAL)
+      if (id === 'TOTAL' || id.endsWith('_APEDIR') || id.endsWith('_EXISTENCIA') || id.endsWith('_VENTAS') || id === 'VALOR_TOTAL') {
+        return body.reduce((sum, row) => sum + (Number(row[colIndex]) || 0), 0);
+      }
+      return "";
+    });
+    
+    const aoa = [header, ...body, totalRow];
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     // Formato hasta 4 decimales para numéricos
     const firstNumericCol = 3; // Total
@@ -460,12 +472,31 @@ function DrugstoresContent() {
         return fmt ?? raw.toLocaleString(undefined, { maximumFractionDigits: 4 });
       });
     });
+    
+    // Calcular totales por columna
+    const totalRow = cols.map((id, colIndex) => {
+      if (colIndex === 0) return "TOTAL GENERAL";
+      if (colIndex === 1 || colIndex === 2) return "";
+      
+      // Sumar columnas numéricas (TOTAL, A_PEDIR, EXISTENCIA, VENTAS, VALOR_TOTAL)
+      if (id === 'TOTAL' || id.endsWith('_APEDIR') || id.endsWith('_EXISTENCIA') || id.endsWith('_VENTAS') || id === 'VALOR_TOTAL') {
+        const sum = bodyRows.reduce((acc, row) => {
+          const val = typeof row[colIndex] === 'string' ? parseFloat(row[colIndex].replace(/,/g, '')) : Number(row[colIndex]);
+          return acc + (isNaN(val) ? 0 : val);
+        }, 0);
+        return sum.toLocaleString(undefined, { maximumFractionDigits: 4 });
+      }
+      return "";
+    });
+    
     w.document.write(`<html><head><title>${title}</title>${style}</head><body>`);
     w.document.write(`<h1>${title}</h1>`);
     w.document.write('<table><thead><tr>' + headCols.map(c=>`<th>${c}</th>`).join('') + '</tr></thead><tbody>');
     for (const row of bodyRows) {
       w.document.write('<tr>' + row.map((c,i)=>`<td class="${i>2?'right':''}">${c}</td>`).join('') + '</tr>');
     }
+    // Agregar fila de totales
+    w.document.write('<tr style="font-weight:bold;background:#e0e0e0;">' + totalRow.map((c,i)=>`<td class="${i>2?'right':''}">${c}</td>`).join('') + '</tr>');
     w.document.write('</tbody></table></body></html>');
     w.document.close();
     w.focus();
@@ -488,7 +519,8 @@ function DrugstoresContent() {
       holder.style.top = '0';
       const headColsHtml = headCols.map(c=>`<th>${c}</th>`).join('');
       const bodyRowsHtml = bodyRows.map(row=>'<tr>' + row.map((c,i)=>`<td class="${i>2?'right':''}">${c}</td>`).join('') + '</tr>').join('');
-      holder.innerHTML = `${stylePdf}<div id="pdf-drugstore-root"><h1>${title}</h1><table><thead><tr>${headColsHtml}</tr></thead><tbody>${bodyRowsHtml}</tbody></table></div>`;
+      const totalRowHtml = '<tr style="font-weight:bold;background:#e0e0e0;">' + totalRow.map((c,i)=>`<td class="${i>2?'right':''}">${c}</td>`).join('') + '</tr>';
+      holder.innerHTML = `${stylePdf}<div id="pdf-drugstore-root"><h1>${title}</h1><table><thead><tr>${headColsHtml}</tr></thead><tbody>${bodyRowsHtml}${totalRowHtml}</tbody></table></div>`;
       document.body.appendChild(holder);
       const dateStr = new Date().toISOString().slice(0,10);
       const fileName = `Pedidos_${ds?.name ?? drugstoreId}_${dateStr}.pdf`;
