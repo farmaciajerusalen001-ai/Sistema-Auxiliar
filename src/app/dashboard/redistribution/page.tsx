@@ -26,6 +26,8 @@ function buildPlan(params: {
     ToId: string;
     Cantidad: number;
     UNI_MED: string;
+    PrecioUnitario: number;
+    ValorTotal: number;
     Stocks: Record<string, number>;
     NeedDestino: number;
     LocalCubierto: number;
@@ -56,6 +58,7 @@ function buildPlan(params: {
 
   for (const [, group] of byKey) {
     const info = group.info;
+    const precioUnitario = Number(info.VALOR_UNIT ?? info.PRECIO ?? 0);
     
     // PRIMERO: cada sucursal cubre su propia demanda con su propio stock
     for (const [id, data] of Object.entries(group.perBranch)) {
@@ -77,6 +80,8 @@ function buildPlan(params: {
           ToId: id,
           Cantidad: movedAdj,
           UNI_MED: info.UNI_MED,
+          PrecioUnitario: precioUnitario,
+          ValorTotal: movedAdj * precioUnitario,
           Stocks: stocks,
           NeedDestino: need,
           LocalCubierto: movedAdj,
@@ -126,6 +131,8 @@ function buildPlan(params: {
             ToId: recv.id,
             Cantidad: movedAdj,
             UNI_MED: info.UNI_MED,
+            PrecioUnitario: precioUnitario,
+            ValorTotal: movedAdj * precioUnitario,
             Stocks: stocks,
             NeedDestino: need,
             LocalCubierto: localCovered,
@@ -198,7 +205,8 @@ export default function RedistributionPage() {
       const arr = buckets.get(drugstoreId) ?? [];
       let row = arr.find((r: any) => r.__key === key);
       if (!row) {
-        row = { __key: key, __drugstoreId: drugstoreId, __drugstoreName: drugstores.find(d=>d.id===drugstoreId)?.name || drugstoreId, CODIGO: code, Producto: desc, UNI_MED: base };
+        const precioUnit = toNum(p.VALOR_UNIT ?? p.PRECIO ?? p.price ?? 0);
+        row = { __key: key, __drugstoreId: drugstoreId, __drugstoreName: drugstores.find(d=>d.id===drugstoreId)?.name || drugstoreId, CODIGO: code, Producto: desc, UNI_MED: base, VALOR_UNIT: precioUnit };
         for (const ph of pharmacies) {
           row[`${ph.id}_APEDIR`] = 0;
           row[`${ph.id}_EXISTENCIA`] = 0;
@@ -313,12 +321,12 @@ export default function RedistributionPage() {
   // Exporta movimientos por sucursal: una hoja por sucursal con los traslados salientes
   const exportBranchMovements = async () => {
     const XLSX = await import("xlsx");
-    const byBranch = new Map<string, Array<[string,string,string,string,string,number,string]>>();
+    const byBranch = new Map<string, Array<[string,string,string,string,string,number,string,number,number]>>();
     for (const m of plan as any[]) {
       // Filtrar movimientos donde origen y destino son la misma sucursal
       if (m.FromId === m.ToId) continue;
       
-      const row: [string,string,string,string,string,number,string] = [
+      const row: [string,string,string,string,string,number,string,number,number] = [
         m.From,
         m.CODIGO,
         m.Producto,
@@ -326,22 +334,29 @@ export default function RedistributionPage() {
         m.To,
         Number(m.Cantidad),
         m.UNI_MED,
+        Number(m.PrecioUnitario ?? 0),
+        Number(m.ValorTotal ?? 0),
       ];
       const arr = byBranch.get(m.FromId) ?? [];
       arr.push(row);
       byBranch.set(m.FromId, arr);
     }
     const wb = XLSX.utils.book_new();
-    const header = ["Sucursal", "CODIGO", "Producto", "Droguería", "A Sucursal", "Cantidad", "Unidad"];
+    const header = ["Sucursal", "CODIGO", "Producto", "Droguería", "A Sucursal", "Cantidad", "Unidad", "Precio Unit.", "Valor Total"];
     for (const ph of pharmacies) {
       const rows = byBranch.get(ph.id) ?? [];
       
       // Agrupar por droguería y calcular totales
-      const byDrugstore = new Map<string, number>();
+      const byDrugstore = new Map<string, {cantidad: number, valorTotal: number}>();
       for (const row of rows) {
         const drugstore = row[3]; // Droguería está en el índice 3
         const cantidad = row[5]; // Cantidad está en el índice 5
-        byDrugstore.set(drugstore, (byDrugstore.get(drugstore) ?? 0) + cantidad);
+        const valorTotal = row[8]; // Valor Total está en el índice 8
+        const current = byDrugstore.get(drugstore) ?? {cantidad: 0, valorTotal: 0};
+        byDrugstore.set(drugstore, {
+          cantidad: current.cantidad + cantidad,
+          valorTotal: current.valorTotal + valorTotal
+        });
       }
       
       // Construir el array con filas agrupadas por droguería y sus totales
@@ -361,14 +376,15 @@ export default function RedistributionPage() {
       for (const [drugstore, drugstoreRows] of drugstoreGroups) {
         aoa.push(...drugstoreRows);
         // Fila de subtotal por droguería
-        const subtotal = byDrugstore.get(drugstore) ?? 0;
-        aoa.push(["", "", "", `TOTAL ${drugstore}`, "", subtotal, ""]);
+        const subtotal = byDrugstore.get(drugstore)!;
+        aoa.push(["", "", "", `TOTAL ${drugstore}`, "", subtotal.cantidad, "", "", subtotal.valorTotal]);
         aoa.push([]); // Fila vacía para separación
       }
       
       // Total general de la sucursal
-      const totalGeneral = rows.reduce((sum, row) => sum + row[5], 0);
-      aoa.push(["", "", "", "TOTAL GENERAL", "", totalGeneral, ""]);
+      const totalCantidad = rows.reduce((sum, row) => sum + row[5], 0);
+      const totalValor = rows.reduce((sum, row) => sum + row[8], 0);
+      aoa.push(["", "", "", "TOTAL GENERAL", "", totalCantidad, "", "", totalValor]);
       
       const ws = XLSX.utils.aoa_to_sheet(aoa);
       XLSX.utils.book_append_sheet(wb, ws, ph.name.slice(0, 31));
@@ -567,12 +583,12 @@ export default function RedistributionPage() {
         th { background: #f8fafc; text-align: left; }
         .right { text-align: right; }
       </style>`;
-    const byBranch = new Map<string, Array<[string,string,string,string,string,number,string]>>();
+    const byBranch = new Map<string, Array<[string,string,string,string,string,number,string,number,number]>>();
     for (const m of plan as any[]) {
       // Filtrar movimientos donde origen y destino son la misma sucursal
       if (m.FromId === m.ToId) continue;
       
-      const row: [string,string,string,string,string,number,string] = [
+      const row: [string,string,string,string,string,number,string,number,number] = [
         m.From,
         m.CODIGO,
         m.Producto,
@@ -580,12 +596,14 @@ export default function RedistributionPage() {
         m.To,
         Number(m.Cantidad),
         m.UNI_MED,
+        Number(m.PrecioUnitario ?? 0),
+        Number(m.ValorTotal ?? 0),
       ];
       const arr = byBranch.get(m.FromId) ?? [];
       arr.push(row);
       byBranch.set(m.FromId, arr);
     }
-    const head = ["Sucursal", "CODIGO", "Producto", "Droguería", "A Sucursal", "Cantidad", "Unidad"];
+    const head = ["Sucursal", "CODIGO", "Producto", "Droguería", "A Sucursal", "Cantidad", "Unidad", "Precio Unit.", "Valor Total"];
     let pdfBody = ``;
     w.document.write(`<html><head><title>${title}</title>${style}</head><body>`);
     w.document.write(`<h1>${title}</h1>`);
@@ -600,17 +618,22 @@ export default function RedistributionPage() {
       } else {
         // Agrupar por droguería
         const drugstoreGroups = new Map<string, typeof rows>();
-        const byDrugstore = new Map<string, number>();
+        const byDrugstore = new Map<string, {cantidad: number, valorTotal: number}>();
         
         for (const row of rows) {
           const drugstore = row[3]; // Droguería está en el índice 3
           const cantidad = row[5]; // Cantidad está en el índice 5
+          const valorTotal = row[8]; // Valor Total está en el índice 8
           
           if (!drugstoreGroups.has(drugstore)) {
             drugstoreGroups.set(drugstore, []);
           }
           drugstoreGroups.get(drugstore)!.push(row);
-          byDrugstore.set(drugstore, (byDrugstore.get(drugstore) ?? 0) + cantidad);
+          const current = byDrugstore.get(drugstore) ?? {cantidad: 0, valorTotal: 0};
+          byDrugstore.set(drugstore, {
+            cantidad: current.cantidad + cantidad,
+            valorTotal: current.valorTotal + valorTotal
+          });
         }
         
         w.document.write('<table><thead><tr>' + head.map(c=>`<th>${c}</th>`).join('') + '</tr></thead><tbody>');
@@ -619,22 +642,23 @@ export default function RedistributionPage() {
         // Agregar filas por droguería con subtotales
         for (const [drugstore, drugstoreRows] of drugstoreGroups) {
           for (const r of drugstoreRows) {
-            w.document.write('<tr>' + r.map((c,i)=>`<td class="${i===5?'right':''}">${c}</td>`).join('') + '</tr>');
-            pdfBody += '<tr>' + r.map((c,i)=>`<td class="${i===5?'right':''}">${c}</td>`).join('') + '</tr>';
+            w.document.write('<tr>' + r.map((c,i)=>`<td class="${(i===5||i===7||i===8)?'right':''}">${typeof c === 'number' ? c.toLocaleString(undefined,{maximumFractionDigits:4}) : c}</td>`).join('') + '</tr>');
+            pdfBody += '<tr>' + r.map((c,i)=>`<td class="${(i===5||i===7||i===8)?'right':''}">${typeof c === 'number' ? c.toLocaleString(undefined,{maximumFractionDigits:4}) : c}</td>`).join('') + '</tr>';
           }
           // Fila de subtotal por droguería
-          const subtotal = byDrugstore.get(drugstore) ?? 0;
-          w.document.write(`<tr style="font-weight:bold;background:#f0f0f0;"><td colspan="4">TOTAL ${drugstore}</td><td></td><td class="right">${subtotal.toLocaleString(undefined,{maximumFractionDigits:4})}</td><td></td></tr>`);
-          pdfBody += `<tr style="font-weight:bold;background:#f0f0f0;"><td colspan="4">TOTAL ${drugstore}</td><td></td><td class="right">${subtotal.toLocaleString(undefined,{maximumFractionDigits:4})}</td><td></td></tr>`;
+          const subtotal = byDrugstore.get(drugstore)!;
+          w.document.write(`<tr style="font-weight:bold;background:#f0f0f0;"><td colspan="4">TOTAL ${drugstore}</td><td></td><td class="right">${subtotal.cantidad.toLocaleString(undefined,{maximumFractionDigits:4})}</td><td colspan="2"></td><td class="right">${subtotal.valorTotal.toLocaleString(undefined,{maximumFractionDigits:2})}</td></tr>`);
+          pdfBody += `<tr style="font-weight:bold;background:#f0f0f0;"><td colspan="4">TOTAL ${drugstore}</td><td></td><td class="right">${subtotal.cantidad.toLocaleString(undefined,{maximumFractionDigits:4})}</td><td colspan="2"></td><td class="right">${subtotal.valorTotal.toLocaleString(undefined,{maximumFractionDigits:2})}</td></tr>`;
           // Fila vacía para separación
-          w.document.write('<tr><td colspan="7" style="border:none;height:8px;"></td></tr>');
-          pdfBody += '<tr><td colspan="7" style="border:none;height:8px;"></td></tr>';
+          w.document.write('<tr><td colspan="9" style="border:none;height:8px;"></td></tr>');
+          pdfBody += '<tr><td colspan="9" style="border:none;height:8px;"></td></tr>';
         }
         
         // Total general de la sucursal
-        const totalGeneral = rows.reduce((sum, row) => sum + row[5], 0);
-        w.document.write(`<tr style="font-weight:bold;background:#e0e0e0;"><td colspan="4">TOTAL GENERAL</td><td></td><td class="right">${totalGeneral.toLocaleString(undefined,{maximumFractionDigits:4})}</td><td></td></tr>`);
-        pdfBody += `<tr style="font-weight:bold;background:#e0e0e0;"><td colspan="4">TOTAL GENERAL</td><td></td><td class="right">${totalGeneral.toLocaleString(undefined,{maximumFractionDigits:4})}</td><td></td></tr>`;
+        const totalCantidad = rows.reduce((sum, row) => sum + row[5], 0);
+        const totalValor = rows.reduce((sum, row) => sum + row[8], 0);
+        w.document.write(`<tr style="font-weight:bold;background:#e0e0e0;"><td colspan="4">TOTAL GENERAL</td><td></td><td class="right">${totalCantidad.toLocaleString(undefined,{maximumFractionDigits:4})}</td><td colspan="2"></td><td class="right">${totalValor.toLocaleString(undefined,{maximumFractionDigits:2})}</td></tr>`);
+        pdfBody += `<tr style="font-weight:bold;background:#e0e0e0;"><td colspan="4">TOTAL GENERAL</td><td></td><td class="right">${totalCantidad.toLocaleString(undefined,{maximumFractionDigits:4})}</td><td colspan="2"></td><td class="right">${totalValor.toLocaleString(undefined,{maximumFractionDigits:2})}</td></tr>`;
         
         w.document.write('</tbody></table>');
         pdfBody += '</tbody></table>';
