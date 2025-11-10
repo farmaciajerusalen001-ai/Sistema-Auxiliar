@@ -1,5 +1,5 @@
 import { db } from "./firebase";
-import { collection, getDocs, doc, setDoc } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, deleteDoc } from "firebase/firestore";
 
 export type Drugstore = { id: string; name: string };
 export type FamilyMap = { family: string; drugstoreId: string };
@@ -67,4 +67,28 @@ export async function saveDrugstoresAndFamilies(mappings: Array<{ LABORATORIO: s
     const famId = slug(family);
     await setDoc(doc(db, "families_map", famId), { family, drugstoreId: drugId });
   }
+}
+
+// CRUD helpers for Admin UI
+export async function upsertDrugstore(id: string, name: string) {
+  if (!db) return;
+  await setDoc(doc(db, "drugstores", id), { name });
+}
+
+export async function deleteDrugstore(id: string) {
+  if (!db) return;
+  await deleteDoc(doc(db, "drugstores", id));
+}
+
+export async function upsertFamily(family: string, drugstoreId: string) {
+  if (!db) return;
+  const famId = slug(family);
+  await setDoc(doc(db, "families_map", famId), { family, drugstoreId });
+}
+
+export async function deleteFamily(family: string, drugstoreId: string) {
+  if (!db) return;
+  const famId = slug(family);
+  // We delete by family ID regardless of current mapping; UI already knows drugstoreId
+  await deleteDoc(doc(db, "families_map", famId));
 }

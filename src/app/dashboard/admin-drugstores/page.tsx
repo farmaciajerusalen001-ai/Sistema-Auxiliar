@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useMemo, useState } from "react";
+import { upsertDrugstore, deleteDrugstore as fsDeleteDrugstore, upsertFamily, deleteFamily as fsDeleteFamily } from "@/lib/drugstores";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 function slugLocal(s: string) {
@@ -69,6 +70,7 @@ export default function AdminDrugstoresPage() {
                 const next = [{ id: 'sin-drogueria', name: 'Sin Droguería' }, ...drugstores.filter(d=>d.id!=='sin-drogueria'), { id, name }]
                   .filter((v,i,a)=> a.findIndex(x=>x.id===v.id)===i);
                 dispatch({ type: 'SET_DRUGSTORES', payload: next });
+                upsertDrugstore(id, name).catch(()=>{});
                 setNewDsName("");
               }}
             >
@@ -103,6 +105,7 @@ export default function AdminDrugstoresPage() {
                   ? familyMap.map(e => e.family.trim().toUpperCase() === fam.toUpperCase() ? { family: fam, drugstoreId: dsId } : e)
                   : [...familyMap, { family: fam, drugstoreId: dsId }];
                 dispatch({ type: 'SET_FAMILY_MAP', payload: next });
+                upsertFamily(fam, dsId).catch(()=>{});
                 setFamAddName("");
               }}
             >
@@ -157,6 +160,7 @@ export default function AdminDrugstoresPage() {
                           const nextMap = familyMap.map(e => (e.drugstoreId === d.id ? { ...e, drugstoreId: 'sin-drogueria' } : e));
                           dispatch({ type: 'SET_DRUGSTORES', payload: nextDs });
                           dispatch({ type: 'SET_FAMILY_MAP', payload: nextMap });
+                          fsDeleteDrugstore(d.id).catch(()=>{});
                           if (editDsId === d.id) { setEditDsId(""); setEditDsName(""); setFamRename({}); }
                         }}
                       >
@@ -188,6 +192,7 @@ export default function AdminDrugstoresPage() {
                   if (!name) return;
                   const next = drugstores.map(d => d.id === editDsId ? { ...d, name } : d);
                   dispatch({ type: 'SET_DRUGSTORES', payload: next });
+                  upsertDrugstore(editDsId, name).catch(()=>{});
                   alert('Droguería actualizada');
                 }}
               >
@@ -229,6 +234,7 @@ export default function AdminDrugstoresPage() {
                               if (!newName) return;
                               const updated = familyMap.map(f => f.family === e.family ? { ...f, family: newName } : f);
                               dispatch({ type: 'SET_FAMILY_MAP', payload: updated });
+                              upsertFamily(newName, editDsId).catch(()=>{});
                               setFamRename(prev=> ({ ...prev, [key]: newName }));
                             }}
                           >
@@ -288,6 +294,7 @@ export default function AdminDrugstoresPage() {
                             if (!ok) return;
                             const next = familyMap.filter(x => !(x.family === e.family && x.drugstoreId === e.drugstoreId));
                             dispatch({ type: 'SET_FAMILY_MAP', payload: next });
+                            fsDeleteFamily(e.family, e.drugstoreId).catch(()=>{});
                           }}
                         >
                           Eliminar
