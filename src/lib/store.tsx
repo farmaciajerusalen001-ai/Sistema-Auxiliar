@@ -34,7 +34,13 @@ type Action =
   | { type: 'LOCK_CONVERSION' }
   | { type: 'SET_PRODUCTS'; payload: Product[] }
   | { type: 'SET_PHARMACIES'; payload: Pharmacy[] }
-  | { type: 'SET_LABS'; payload: Laboratory[] };
+  | { type: 'SET_LABS'; payload: Laboratory[] }
+  | { type: 'ADD_PRODUCTS'; payload: Product[] }
+  | { type: 'CLEAR_EXPORT_AFTER_SAVE' }
+  | { type: 'SET_CONVERSION'; payload: { key: string; def: { sourceUnit: string; targetUnit: string; factor: number; comment?: string; roundUp?: boolean } } }
+  | { type: 'REMOVE_CONVERSION'; payload: { key: string } }
+  | { type: 'CLEAR_CONVERSIONS' }
+  | { type: 'CLEAR_ALL_DATA' };
 
 const AppStateContext = createContext<AppState | undefined>(undefined);
 const AppDispatchContext = createContext<Dispatch<Action> | undefined>(undefined);
@@ -68,19 +74,54 @@ function appReducer(state: AppState, action: Action): AppState {
       return { ...state, drugstores: action.payload.drugstores, familyMap: action.payload.familyMap };
     case 'SET_EXPORT_AFTER_SAVE':
       return { ...state, exportAfterSave: action.payload };
+    case 'CLEAR_EXPORT_AFTER_SAVE':
+      return { ...state, exportAfterSave: undefined };
     case 'UNLOCK_CONVERSION':
       return { ...state, canAccessConversion: true };
     case 'LOCK_CONVERSION':
       return { ...state, canAccessConversion: false };
     case 'SET_PRODUCTS':
       return { ...state, products: action.payload };
+    case 'ADD_PRODUCTS':
+      return { ...state, products: action.payload, isDataLoaded: true };
     case 'SET_PHARMACIES':
       return { ...state, pharmacies: action.payload };
     case 'SET_LABS':
       return { ...state, laboratories: action.payload };
+    case 'SET_CONVERSION': {
+      const { key, def } = action.payload;
+      return { ...state, conversions: { ...state.conversions, [key]: def } };
+    }
+    case 'REMOVE_CONVERSION': {
+      const { [action.payload.key]: _, ...rest } = state.conversions;
+      return { ...state, conversions: rest };
+    }
+    case 'CLEAR_CONVERSIONS':
+      return { ...state, conversions: {} };
+    case 'CLEAR_ALL_DATA':
+      return {
+        ...state,
+        products: [],
+        conversions: {},
+        productOverrides: {},
+        exportAfterSave: undefined,
+        isDataLoaded: false,
+        canAccessConversion: false,
+      };
     default:
       return state;
   }
+}
+
+// Normaliza productos importados para cumplir con el shape esperado por la app
+export function normalizeProducts(input: any[]): Product[] {
+  return (input || []).map((p, idx) => ({
+    ...(p as any),
+    id: String((p as any).id ?? idx),
+    code: String((p as any).code ?? (p as any).CODIGO ?? ''),
+    name: String((p as any).name ?? (p as any).DESCRIPCION ?? ''),
+    unit: String((p as any).unit ?? (p as any).UNI_MED ?? ''),
+  })) as unknown as Product[];
 }
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
@@ -167,8 +208,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                 window.localStorage.setItem('pharmaCentralBackup', JSON.stringify(meta));
               } catch {}
             }
-            // Escribir el estado completo en IndexedDB (no sujeta a la misma cuota)
-            idbSet('pharmaCentralState', state).catch(() => {});
+            // Escribir el estado completo en IndexedDB solo si hay productos
+            if (currentHasProducts) {
+              idbSet('pharmaCentralState', state).catch(() => {});
+            }
         } catch (error) {
             console.warn('Error writing to localStorage:', error);
         }
@@ -192,7 +235,7 @@ export const useAppState = (): AppState => {
   return context;
 };
 
-export const useAppDispatch = () => {
+export const useAppDispatch = (): Dispatch<Action> => {
   const context = useContext(AppDispatchContext);
   if (context === undefined) {
     throw new Error("useAppDispatch must be used within an AppProvider");
