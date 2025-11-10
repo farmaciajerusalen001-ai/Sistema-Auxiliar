@@ -269,35 +269,17 @@ export default function MoveProductPage() {
               <div className="flex gap-2">
                 <Button
                   size="sm"
-                  variant="outline"
                   onClick={async () => {
                     try {
                       await idbSet('pharmaPermanentOverrides', productOverrides);
-                      alert('Overrides guardados como permanentes. Se aplicarán automáticamente en futuros procesos.');
+                      dispatch({ type: 'MERGE_PRODUCT_OVERRIDES', payload: productOverrides });
+                      alert('Overrides guardados como permanentes y aplicados.');
                     } catch {
-                      alert('No fue posible guardar los overrides permanentes.');
+                      alert('No fue posible guardar y aplicar los overrides permanentes.');
                     }
                   }}
                 >
-                  Guardar como permanentes
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={async () => {
-                    try {
-                      const perm = await idbGet<Record<string, { drugstoreId?: string; laboratory?: string }>>('pharmaPermanentOverrides');
-                      if (perm && Object.keys(perm).length > 0) {
-                        dispatch({ type: 'MERGE_PRODUCT_OVERRIDES', payload: perm });
-                        alert('Overrides permanentes aplicados.');
-                      } else {
-                        alert('No hay overrides permanentes guardados.');
-                      }
-                    } catch {
-                      alert('No fue posible cargar los overrides permanentes.');
-                    }
-                  }}
-                >
-                  Aplicar permanentes ahora
+                  Guardar y aplicar permanentes
                 </Button>
               </div>
             </div>
