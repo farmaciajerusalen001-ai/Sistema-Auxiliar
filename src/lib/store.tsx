@@ -25,7 +25,63 @@ interface AppState {
   activeProcessName?: string;
 }
 
-// ... (rest of the code remains the same)
+type Action =
+  | { type: 'REHYDRATE'; payload: Partial<AppState> }
+  | { type: 'MERGE_PRODUCT_OVERRIDES'; payload: Record<string, { drugstoreId?: string; laboratory?: string }> }
+  | { type: 'SET_DRUGSTORES_DATA'; payload: { drugstores: { id: string; name: string }[]; familyMap: { family: string; drugstoreId: string }[] } }
+  | { type: 'SET_EXPORT_AFTER_SAVE'; payload: { page: 'consolidated' | 'drugstores'; type: 'excel' | 'pdf'; params?: any; filteredProducts?: string[] } }
+  | { type: 'UNLOCK_CONVERSION' }
+  | { type: 'LOCK_CONVERSION' }
+  | { type: 'SET_PRODUCTS'; payload: Product[] }
+  | { type: 'SET_PHARMACIES'; payload: Pharmacy[] }
+  | { type: 'SET_LABS'; payload: Laboratory[] };
+
+const AppStateContext = createContext<AppState | undefined>(undefined);
+const AppDispatchContext = createContext<Dispatch<Action> | undefined>(undefined);
+
+function getInitialState(): AppState {
+  return {
+    products: [],
+    pharmacies: [],
+    laboratories: [],
+    isDataLoaded: false,
+    isAuthenticated: false,
+    user: null,
+    canAccessConversion: false,
+    conversions: {},
+    drugstores: [],
+    familyMap: [],
+    productOverrides: {},
+    exportAfterSave: undefined,
+    activeProcessId: undefined,
+    activeProcessName: undefined,
+  };
+}
+
+function appReducer(state: AppState, action: Action): AppState {
+  switch (action.type) {
+    case 'REHYDRATE':
+      return { ...state, ...action.payload } as AppState;
+    case 'MERGE_PRODUCT_OVERRIDES':
+      return { ...state, productOverrides: { ...state.productOverrides, ...action.payload } };
+    case 'SET_DRUGSTORES_DATA':
+      return { ...state, drugstores: action.payload.drugstores, familyMap: action.payload.familyMap };
+    case 'SET_EXPORT_AFTER_SAVE':
+      return { ...state, exportAfterSave: action.payload };
+    case 'UNLOCK_CONVERSION':
+      return { ...state, canAccessConversion: true };
+    case 'LOCK_CONVERSION':
+      return { ...state, canAccessConversion: false };
+    case 'SET_PRODUCTS':
+      return { ...state, products: action.payload };
+    case 'SET_PHARMACIES':
+      return { ...state, pharmacies: action.payload };
+    case 'SET_LABS':
+      return { ...state, laboratories: action.payload };
+    default:
+      return state;
+  }
+}
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [state, dispatch] = useReducer(appReducer, getInitialState());
@@ -128,7 +184,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export const useAppState = () => {
+export const useAppState = (): AppState => {
   const context = useContext(AppStateContext);
   if (context === undefined) {
     throw new Error("useAppState must be used within an AppProvider");
