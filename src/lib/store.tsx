@@ -221,26 +221,35 @@ const appReducer = (state: AppState, action: Action): AppState => {
     case "APPLY_REDISTRIBUTION": {
       const { moves, updates } = action.payload;
       const clone = state.products.map(p => ({ ...p } as any));
-      const keyOf = (p: any) => {
+      const keyOfSimple = (p: any) => {
         const code = String(p.CODIGO ?? p.code ?? '').trim();
         const desc = String(p.DESCRIPCION ?? p.name ?? '').trim();
         return code || desc;
       };
-      const index = new Map<string, number>(); // key|branch -> idx
+      const keyOfWithUnit = (p: any) => {
+        const simple = keyOfSimple(p);
+        const unit = String(p.UNI_MED ?? p.UNIDAD ?? p.unit ?? '').trim();
+        return `${simple}|${unit}`;
+      };
+      const indexSimple = new Map<string, number>(); // key|branch -> idx
+      const indexWithUnit = new Map<string, number>(); // key|unit|branch -> idx
       for (let i = 0; i < clone.length; i++) {
         const p: any = clone[i];
-        const k = keyOf(p);
+        const kSimple = keyOfSimple(p);
+        const kWithUnit = keyOfWithUnit(p);
         const branch = String(p.pharmacy ?? '').trim();
-        if (!k || !branch) continue;
-        index.set(`${k}|${branch}`, i);
+        if (!branch) continue;
+        if (kSimple) indexSimple.set(`${kSimple}|${branch}`, i);
+        if (kWithUnit) indexWithUnit.set(`${kWithUnit}|${branch}`, i);
       }
 
       // Apply existence transfers
-      for (const m of moves) {
-        const key = String(m.CODIGO ?? m.Producto ?? '').trim();
+      for (const m of moves as any[]) {
+        const payloadKey: string | undefined = (m as any).Key; // may be composite key|unit
+        const key = payloadKey || String(m.CODIGO ?? m.Producto ?? '').trim();
         if (!key) continue;
-        const fromIdx = index.get(`${key}|${m.FromId}`);
-        const toIdx = index.get(`${key}|${m.ToId}`);
+        const fromIdx = payloadKey ? indexWithUnit.get(`${key}|${m.FromId}`) : indexSimple.get(`${key}|${m.FromId}`);
+        const toIdx = payloadKey ? indexWithUnit.get(`${key}|${m.ToId}`) : indexSimple.get(`${key}|${m.ToId}`);
         if (fromIdx !== undefined) {
           const row = clone[fromIdx];
           const cur = Number(row.EXISTENCIA ?? row.EXISTEN ?? row.STOCK ?? 0);
@@ -260,10 +269,11 @@ const appReducer = (state: AppState, action: Action): AppState => {
       }
 
       // Apply new A_PEDIR per branch
-      for (const u of updates) {
-        const key = String(u.CODIGO ?? u.Producto ?? '').trim();
+      for (const u of updates as any[]) {
+        const payloadKey: string | undefined = (u as any).Key;
+        const key = payloadKey || String(u.CODIGO ?? u.Producto ?? '').trim();
         if (!key) continue;
-        const idx = index.get(`${key}|${u.SucursalId}`);
+        const idx = payloadKey ? indexWithUnit.get(`${key}|${u.SucursalId}`) : indexSimple.get(`${key}|${u.SucursalId}`);
         if (idx !== undefined) {
           const row = clone[idx];
           const next = Number(u.NuevoAPedir.toFixed(4));

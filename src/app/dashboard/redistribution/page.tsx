@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { useAppDispatch, useAppState } from "@/lib/store";
 import { resolveDrugstoreIdByFamily } from "@/lib/drugstores";
 import { baseCanonicalFor, convertQuantity } from "@/lib/units";
@@ -16,6 +16,7 @@ function buildPlan(params: {
   bufferByBranch: Record<string, number>;
 }) {
   const { rows, pharmacies, bufferByBranch } = params;
+  const round4 = (n: number) => Number(Math.round((n ?? 0) * 1e4) / 1e4);
   type Move = {
     CODIGO: string;
     Producto: string;
@@ -64,9 +65,12 @@ function buildPlan(params: {
     for (const [id, data] of Object.entries(group.perBranch)) {
       const { need, stock } = data;
       const covered = Math.min(need, stock);
+      // Actualizamos el stock y la necesidad antes de capturar snapshot
+      group.perBranch[id].stock = Math.max(0, round4(stock - covered));
+      group.perBranch[id].need = Math.max(0, round4(need - covered));
       // Registrar como "traslado" de la misma sucursal a sí misma para visibilidad
       if (covered > 0) {
-        const movedAdj = Math.max(0, Number(covered.toFixed(4)));
+        const movedAdj = Math.max(0, round4(covered));
         const stocks: Record<string, number> = Object.fromEntries(
           Object.entries(group.perBranch).map(([bid, v]) => [bid, v.stock])
         );
@@ -86,13 +90,10 @@ function buildPlan(params: {
           NeedDestino: need,
           LocalCubierto: movedAdj,
           DeficitAntes: Number(need.toFixed(4)),
-          DeficitDespues: Math.max(0, Number((need - movedAdj).toFixed(4))),
+          DeficitDespues: Math.max(0, round4(need - movedAdj)),
           Key: info.__key,
         });
       }
-      // Actualizamos el stock restando lo que se usó para cubrir la demanda local
-      group.perBranch[id].stock -= covered;
-      group.perBranch[id].need = Math.max(0, need - covered);
     }
     
     // Sucursales donantes: excedente = stock restante después de cubrir necesidad local
@@ -116,8 +117,13 @@ function buildPlan(params: {
         if (donor.surplus <= 0) continue;
         let moved = Math.min(remain, donor.surplus);
         // Redondeo a 4 decimales para evitar residuos flotantes
-        const movedAdj = Math.max(0, Number(moved.toFixed(4)));
+        const movedAdj = Math.max(0, round4(moved));
         if (movedAdj > 0) {
+          // Actualizar stocks de donante y receptor antes de capturar snapshot
+          const prevDon = group.perBranch[donor.id].stock;
+          const prevRecv = group.perBranch[recv.id].stock;
+          group.perBranch[donor.id].stock = Math.max(0, round4(prevDon - movedAdj));
+          group.perBranch[recv.id].stock = round4(prevRecv + movedAdj);
           const stocks: Record<string, number> = Object.fromEntries(
             Object.entries(group.perBranch).map(([id, v]) => [id, v.stock])
           );
@@ -136,12 +142,12 @@ function buildPlan(params: {
             Stocks: stocks,
             NeedDestino: need,
             LocalCubierto: localCovered,
-            DeficitAntes: Number(remain.toFixed(4)),
-            DeficitDespues: Math.max(0, Number((remain - movedAdj).toFixed(4))),
+            DeficitAntes: round4(remain),
+            DeficitDespues: Math.max(0, round4(remain - movedAdj)),
             Key: info.__key,
           });
-          donor.surplus = Math.max(0, Number((donor.surplus - movedAdj).toFixed(4)));
-          remain = Math.max(0, Number((remain - movedAdj).toFixed(4)));
+          donor.surplus = Math.max(0, round4(donor.surplus - movedAdj));
+          remain = Math.max(0, round4(remain - movedAdj));
         }
       }
     }
@@ -157,12 +163,21 @@ export default function RedistributionPage() {
 
   const [selectedDrugstore, setSelectedDrugstore] = useState<string>("all");
   const summaryRef = useRef<HTMLDivElement>(null);
+  const [isApplying, setIsApplying] = useState(false);
+  const [hasSnapshot, setHasSnapshot] = useState(false);
   const [buffers, setBuffers] = useState<Record<string, number>>(() => {
     const init: Record<string, number> = {};
     for (const p of pharmacies) init[p.id] = 0; // reserva mínima para no dejar en 0
     return init;
   });
   const [hideZeros, setHideZeros] = useState<boolean>(true);
+
+  useEffect(() => {
+    try {
+      const raw = window.sessionStorage.getItem('phc_prevProducts');
+      setHasSnapshot(!!raw);
+    } catch { setHasSnapshot(false); }
+  }, [products]);
 
   const byDrugstoreRows = useMemo(() => {
     // Build rows similar to drugstores page but minimal fields and include both A_PEDIR and EXISTENCIA per branch
@@ -396,7 +411,10 @@ export default function RedistributionPage() {
   // Exportar MOVIMIENTOS (plan) a PDF: incluye el resumen por producto (existencias, a pedir, totales, transferencias, reservas)
   const exportMovementsPdf = () => {
     const w = window.open('', '_blank');
-    if (!w) return;
+    if (!w) {
+      alert('Tu navegador bloqueó la ventana emergente. Usa las exportaciones a Excel para continuar.');
+      return;
+    }
     const title = `Farmacia Jerusalen — Movimientos y Resumen por producto`;
     const style = `
       <style>
@@ -726,24 +744,32 @@ export default function RedistributionPage() {
     if (plan.length === 0 && finalSuggestion.length === 0) return;
     const ok = window.confirm("¿Aplicar redistribución y actualizar A Pedir por sucursal? Esta acción modificará los datos cargados.");
     if (!ok) return;
+    setIsApplying(true);
     try {
-      window.sessionStorage.setItem('phc_prevProducts', JSON.stringify(products));
-    } catch {}
-    const moves = plan.map((m: any) => ({
+      try {
+        window.sessionStorage.setItem('phc_prevProducts', JSON.stringify(products));
+        setHasSnapshot(true);
+      } catch {}
+      const moves = plan.map((m: any) => ({
       CODIGO: m.CODIGO,
       Producto: m.Producto,
       FromId: m.FromId,
       ToId: m.ToId,
       Cantidad: m.Cantidad,
+      Key: m.Key,
     }));
     const updates = finalSuggestion.map((r: any) => ({
       CODIGO: r.CODIGO,
       Producto: r.Producto,
       SucursalId: r.SucursalId,
       NuevoAPedir: r.NuevoAPedir,
+      Key: r.__key,
     }));
     dispatch({ type: "APPLY_REDISTRIBUTION", payload: { moves, updates } });
     alert("Redistribución aplicada. Las vistas se actualizarán con los nuevos valores.");
+    } finally {
+      setIsApplying(false);
+    }
   };
 
   // Deshacer usando snapshot previo
@@ -800,7 +826,17 @@ export default function RedistributionPage() {
             {pharmacies.map(ph => (
               <div key={ph.id} className="space-y-1">
                 <label className="text-sm block">Reserva mínima para {ph.name} (no dejar en 0)</label>
-                <Input type="number" step="any" value={buffers[ph.id] ?? 0} onChange={(e)=> setBuffers(prev=> ({ ...prev, [ph.id]: Number(e.target.value) }))} />
+                <Input
+                  type="number"
+                  step="0.0001"
+                  min={0}
+                  value={buffers[ph.id] ?? 0}
+                  onChange={(e)=> {
+                    const raw = Number(e.target.value);
+                    const v = Number.isFinite(raw) ? raw : 0;
+                    setBuffers(prev=> ({ ...prev, [ph.id]: Math.max(0, v) }));
+                  }}
+                />
               </div>
             ))}
           </div>
@@ -816,8 +852,10 @@ export default function RedistributionPage() {
               Ocultar filas con Nuevo A Pedir = 0
             </label>
             <div className="flex gap-2 flex-wrap">
-              <Button variant="outline" onClick={undoRedistribution}>Deshacer</Button>
-              <Button variant="secondary" onClick={applyRedistribution} disabled={plan.length===0 && visibleFinal.length===0}>Aplicar redistribución</Button>
+              <Button variant="outline" onClick={undoRedistribution} disabled={!hasSnapshot}>Deshacer</Button>
+              <Button variant="secondary" onClick={applyRedistribution} disabled={isApplying || (plan.length===0 && visibleFinal.length===0)}>
+                {isApplying ? 'Aplicando…' : 'Aplicar redistribución'}
+              </Button>
               <Button variant="outline" onClick={exportMovementsPdf} disabled={plan.length===0}>Exportar movimientos (PDF)</Button>
               <Button variant="outline" onClick={exportBranchMovements} disabled={plan.length===0}>Exportar movimientos por sucursal (Excel)</Button>
               <Button variant="outline" onClick={exportBranchMovementsPdf} disabled={plan.length===0}>Exportar movimientos por sucursal (PDF)</Button>
