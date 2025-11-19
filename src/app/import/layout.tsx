@@ -7,7 +7,7 @@ import {
   SidebarInset,
 } from "@/components/ui/sidebar";
 import { useAppState } from "@/lib/store";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ProcessHeader } from "@/components/process-header";
 
@@ -16,13 +16,19 @@ export default function ImportLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { isAuthenticated } = useAppState();
+  const { isAuthenticated, products } = useAppState();
   const router = useRouter();
+  const hasData = useMemo(() => Array.isArray(products) && products.length > 0, [products]);
+  const [readyToRedirect, setReadyToRedirect] = useState(false);
   useEffect(() => {
-    if (!isAuthenticated) {
+    const t = setTimeout(() => setReadyToRedirect(true), 400);
+    return () => clearTimeout(t);
+  }, []);
+  useEffect(() => {
+    if (readyToRedirect && !isAuthenticated && !hasData) {
       router.replace("/login");
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, hasData, readyToRedirect, router]);
   return (
     <SidebarProvider>
       <Sidebar>

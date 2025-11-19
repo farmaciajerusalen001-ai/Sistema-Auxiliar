@@ -40,7 +40,10 @@ type Action =
   | { type: 'SET_CONVERSION'; payload: { key: string; def: { sourceUnit: string; targetUnit: string; factor: number; comment?: string; roundUp?: boolean } } }
   | { type: 'REMOVE_CONVERSION'; payload: { key: string } }
   | { type: 'CLEAR_CONVERSIONS' }
-  | { type: 'CLEAR_ALL_DATA' };
+  | { type: 'CLEAR_ALL_DATA' }
+  | { type: 'SET_PRODUCT_OVERRIDE'; payload: { key: string; override: { drugstoreId?: string; laboratory?: string } } }
+  | { type: 'CLEAR_PRODUCT_OVERRIDE'; payload: { key: string } }
+  | { type: 'SET_FAMILY_MAP'; payload: { family: string; drugstoreId: string }[] };
 
 const AppStateContext = createContext<AppState | undefined>(undefined);
 const AppDispatchContext = createContext<Dispatch<Action> | undefined>(undefined);
@@ -108,6 +111,22 @@ function appReducer(state: AppState, action: Action): AppState {
         isDataLoaded: false,
         canAccessConversion: false,
       };
+    case 'SET_PRODUCT_OVERRIDE': {
+      const { key, override } = action.payload;
+      return {
+        ...state,
+        productOverrides: {
+          ...state.productOverrides,
+          [key]: { ...(state.productOverrides[key] || {}), ...override },
+        },
+      };
+    }
+    case 'CLEAR_PRODUCT_OVERRIDE': {
+      const { [action.payload.key]: _removed, ...rest } = state.productOverrides;
+      return { ...state, productOverrides: rest };
+    }
+    case 'SET_FAMILY_MAP':
+      return { ...state, familyMap: action.payload };
     default:
       return state;
   }
