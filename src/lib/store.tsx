@@ -27,6 +27,8 @@ interface AppState {
 
 type Action =
   | { type: 'REHYDRATE'; payload: Partial<AppState> }
+  | { type: 'LOGIN_SUCCESS'; payload: { username: string } }
+  | { type: 'LOGOUT' }
   | { type: 'MERGE_PRODUCT_OVERRIDES'; payload: Record<string, { drugstoreId?: string; laboratory?: string }> }
   | { type: 'SET_DRUGSTORES_DATA'; payload: { drugstores: { id: string; name: string }[]; familyMap: { family: string; drugstoreId: string }[] } }
   | { type: 'SET_EXPORT_AFTER_SAVE'; payload: { page: 'consolidated' | 'drugstores'; type: 'excel' | 'pdf'; params?: any; filteredProducts?: string[] } }
@@ -71,6 +73,10 @@ function appReducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'REHYDRATE':
       return { ...state, ...action.payload } as AppState;
+    case 'LOGIN_SUCCESS':
+      return { ...state, isAuthenticated: true, user: { username: action.payload.username } };
+    case 'LOGOUT':
+      return { ...state, isAuthenticated: false, user: null };
     case 'MERGE_PRODUCT_OVERRIDES':
       return { ...state, productOverrides: { ...state.productOverrides, ...action.payload } };
     case 'SET_DRUGSTORES_DATA':

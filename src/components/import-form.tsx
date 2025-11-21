@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { idbSet } from "@/lib/idb";
+import { idbSet, idbClear } from "@/lib/idb";
 import { useRouter } from "next/navigation";
 import { useAppDispatch, useAppState } from "@/lib/store";
 import { Button } from "@/components/ui/button";
@@ -84,6 +84,14 @@ export function ImportForm() {
     // Limpia productos, conversiones, overrides y flags de exportación
     dispatch({ type: "CLEAR_ALL_DATA" });
     try { window.sessionStorage.removeItem('phc_prevProducts'); } catch {}
+    // Limpiar persistencia para evitar rehidratación del archivo previo
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('pharmaCentralState');
+        window.localStorage.removeItem('pharmaCentralBackup');
+      }
+    } catch {}
+    try { idbClear().catch(()=>{}); } catch {}
     handleClearFile();
     toast({
         title: "Datos eliminados",
