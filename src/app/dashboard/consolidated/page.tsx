@@ -134,6 +134,16 @@ function ConsolidatedContent() {
     return arr;
   }, [products, pharmacies, conversions]);
 
+  const consolidatedTotals = useMemo(() => {
+    const totalGeneral = (consolidatedRows || []).reduce((sum, r: any) => sum + Number(r.TotalAPedir ?? 0), 0);
+    const perBranchTotals = pharmacies.map((p) => ({
+      id: p.id,
+      name: p.name,
+      total: (consolidatedRows || []).reduce((sum, r: any) => sum + Number(r[p.id] ?? 0), 0),
+    }));
+    return { totalGeneral, perBranchTotals };
+  }, [consolidatedRows, pharmacies]);
+
   const handleGenerateConsolidated = async (skipPrompt = false) => {
     if (consolidatedRows.length === 0) return;
     
@@ -360,6 +370,23 @@ function ConsolidatedContent() {
               instanceKey={`consolidated-${pharmacies.map(p=>p.id).join(',')}`}
               onVisibleColumnsChange={setVisibleCols}
             />
+            {/* Resumen de A Pedir: total general y por sucursal */}
+            <div className="mt-4 border rounded-md p-3 bg-muted/30">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Total a pedir (general)</span>
+                  <span className="font-semibold">{Number(consolidatedTotals.totalGeneral).toLocaleString(undefined, { maximumFractionDigits: 4 })}</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {consolidatedTotals.perBranchTotals.map(pb => (
+                    <div key={pb.id} className="flex items-center justify-between border rounded px-2 py-1 bg-background">
+                      <span className="text-sm">{pb.name} A Pedir</span>
+                      <span className="text-sm font-semibold">{Number(pb.total).toLocaleString(undefined, { maximumFractionDigits: 4 })}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}

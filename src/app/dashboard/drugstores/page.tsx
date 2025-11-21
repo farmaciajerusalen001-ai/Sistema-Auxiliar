@@ -597,6 +597,25 @@ function DrugstoresContent() {
         const rowsAll = byDrugstore[dsId] ?? [];
         const rows = rowsAll.filter(r => Number(((r as any).TOTAL) ?? 0) > 0);
         if (rows.length === 0) return null;
+        // Sucursales: si no hay definidas en el store, inferir desde las claves *_APEDIR del dataset
+        const inferredBranches = (() => {
+          if (branchesForColumns.length > 0) return branchesForColumns;
+          const ids = new Set<string>();
+          for (const r of rowsAll as any[]) {
+            for (const k of Object.keys(r || {})) {
+              const m = k.match(/^(.*)_APEDIR$/);
+              if (m && m[1]) ids.add(m[1]);
+            }
+          }
+          return Array.from(ids).sort().map(id => ({ id, name: id }));
+        })();
+        // Totales "A Pedir": general y por farmacia
+        const totalGeneral = rows.reduce((sum, r:any) => sum + Number(r.TOTAL ?? 0), 0);
+        const perBranchTotals = inferredBranches.map(b => ({
+          id: b.id,
+          name: b.name,
+          total: rows.reduce((sum, r:any) => sum + Number((r as any)[`${b.id}_APEDIR`] ?? 0), 0)
+        }));
         return (
           <Card key={dsId}>
             <CardHeader>
@@ -605,12 +624,29 @@ function DrugstoresContent() {
 
             <CardContent className="overflow-x-auto">
                 <ProductDataTable
-                  columns={makeDrugstoreColumns(branchesForColumns)}
+                  columns={makeDrugstoreColumns(inferredBranches)}
                   data={rows as any}
                   filterColumnId="PRODUCTO"
-                  instanceKey={`drugstore-${dsId}-${branchesForColumns.map(b=>b.id).join(',')}`}
+                  instanceKey={`drugstore-${dsId}-${inferredBranches.map(b=>b.id).join(',')}`}
                   onVisibleColumnsChange={setVisibleCols}
                 />
+              {/* Resumen de A Pedir: total general y por farmacia */}
+              <div className="mt-4 border rounded-md p-3 bg-muted/30">
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">Total a pedir (general)</span>
+                    <span className="font-semibold">{Number(totalGeneral).toLocaleString(undefined, { maximumFractionDigits: 4 })}</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {perBranchTotals.map(pb => (
+                      <div key={pb.id} className="flex items-center justify-between border rounded px-2 py-1 bg-background">
+                        <span className="text-sm">{pb.name} A Pedir</span>
+                        <span className="text-sm font-semibold">{Number(pb.total).toLocaleString(undefined, { maximumFractionDigits: 4 })}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
               <div className="mt-4 flex gap-2">
                 <Button size="sm" onClick={() => exportExcel(dsId, false)}>
                   <Download className="mr-2 h-4 w-4" /> Exportar {ds?.name ?? dsId}

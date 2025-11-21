@@ -32,7 +32,7 @@ import { useRouter } from "next/navigation";
 
 export function SidebarNav() {
   const pathname = usePathname();
-  const { pharmacies, user, canAccessConversion } = useAppState();
+  const { pharmacies, user, canAccessConversion, products } = useAppState();
   const dispatch = useAppDispatch();
   const router = useRouter();
   const [isPharmaciesOpen, setIsPharmaciesOpen] = useState(true);
@@ -52,6 +52,18 @@ export function SidebarNav() {
 
   const isActive = (path: string) => pathname === path;
   const isProductsActive = (slug: string) => pathname === `/dashboard/products/${slug}`;
+
+  // Fallback: si no hay sucursales en el store, inferir desde los productos
+  const displayedPharmacies = (pharmacies && pharmacies.length > 0)
+    ? pharmacies
+    : (() => {
+        const ids = new Set<string>();
+        for (const p of products as any[]) {
+          const id = String((p as any)?.pharmacy ?? '').trim();
+          if (id) ids.add(id);
+        }
+        return Array.from(ids).sort().map(id => ({ id, name: id })) as { id: string; name: string }[];
+      })();
 
   return (
     <>
@@ -165,7 +177,7 @@ export function SidebarNav() {
             </SidebarMenuItem>
             <CollapsibleContent>
                  <div className="ml-7 pl-2 border-l">
-                    {pharmacies.map((store) => (
+                    {displayedPharmacies.map((store) => (
                     <SidebarMenuItem key={store.id}>
                         <SidebarMenuButton
                         asChild
