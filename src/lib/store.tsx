@@ -29,6 +29,10 @@ type Action =
   | { type: 'REHYDRATE'; payload: Partial<AppState> }
   | { type: 'LOGIN_SUCCESS'; payload: { username: string } }
   | { type: 'LOGOUT' }
+  | { type: 'SET_DRUGSTORES'; payload: { id: string; name: string }[] }
+  | { type: 'SET_ACTIVE_PROCESS'; payload: { id?: string; name?: string } }
+  | { type: 'START_NEW_PROCESS' }
+  | { type: 'APPLY_REDISTRIBUTION'; payload: { moves: any[]; updates: any[] } }
   | { type: 'MERGE_PRODUCT_OVERRIDES'; payload: Record<string, { drugstoreId?: string; laboratory?: string }> }
   | { type: 'SET_DRUGSTORES_DATA'; payload: { drugstores: { id: string; name: string }[]; familyMap: { family: string; drugstoreId: string }[] } }
   | { type: 'SET_EXPORT_AFTER_SAVE'; payload: { page: 'consolidated' | 'drugstores'; type: 'excel' | 'pdf'; params?: any; filteredProducts?: string[] } }
@@ -77,6 +81,14 @@ function appReducer(state: AppState, action: Action): AppState {
       return { ...state, isAuthenticated: true, user: { username: action.payload.username } };
     case 'LOGOUT':
       return { ...state, isAuthenticated: false, user: null };
+    case 'SET_DRUGSTORES':
+      return { ...state, drugstores: action.payload };
+    case 'SET_ACTIVE_PROCESS':
+      return { ...state, activeProcessId: action.payload.id, activeProcessName: action.payload.name };
+    case 'START_NEW_PROCESS':
+      return { ...state, activeProcessId: undefined, activeProcessName: undefined };
+    case 'APPLY_REDISTRIBUTION':
+      return { ...state };
     case 'MERGE_PRODUCT_OVERRIDES':
       return { ...state, productOverrides: { ...state.productOverrides, ...action.payload } };
     case 'SET_DRUGSTORES_DATA':
@@ -171,7 +183,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const hasProducts = Array.isArray(storedState?.products) && storedState.products.length > 0;
         if ((state.products?.length ?? 0) === 0 && hasProducts) {
           // Rehidratar todo lo relevante (auth, overrides, conversions, etc.)
-          const { products, conversions, productOverrides, drugstores, familyMap, exportAfterSave, canAccessConversion, isAuthenticated, user } = storedState as any;
+          const { products, conversions, productOverrides, drugstores, familyMap, exportAfterSave, canAccessConversion, isAuthenticated, user, activeProcessId, activeProcessName } = storedState as any;
           dispatch({
             type: 'REHYDRATE',
             payload: {
@@ -184,6 +196,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               canAccessConversion: !!canAccessConversion,
               isAuthenticated: !!isAuthenticated,
               user: user ?? null,
+              activeProcessId: activeProcessId ?? undefined,
+              activeProcessName: activeProcessName ?? undefined,
             } as Partial<AppState>,
           });
         }

@@ -47,16 +47,16 @@ export function ProcessHeader() {
               <FolderOpen className="h-4 w-4 mr-2" />
               Cargar Proceso
             </Button>
+            <Button size="sm" onClick={() => canUpdate ? handleUpdate() : setSaveDialogOpen(true)} disabled={loading}>
+              <Save className="h-4 w-4 mr-2" />
+              Guardar Proceso
+            </Button>
             {canUpdate && (
-              <Button size="sm" onClick={handleUpdate} disabled={loading}>
+              <Button size="sm" variant="outline" onClick={() => setSaveDialogOpen(true)} disabled={loading}>
                 <Save className="h-4 w-4 mr-2" />
-                Guardar
+                Guardar como…
               </Button>
             )}
-            <Button size="sm" variant={canUpdate ? "outline" : "default"} onClick={() => setSaveDialogOpen(true)} disabled={loading}>
-              <Save className="h-4 w-4 mr-2" />
-              {canUpdate ? 'Guardar como…' : 'Guardar Proceso'}
-            </Button>
           </div>
         </div>
       </div>
