@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 // import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import defaultMap from "@/lib/drugstores-default.json" assert { type: "json" };
 import { idbGet, idbSet } from "@/lib/idb";
 import { setProductOverride, deleteProductOverride } from "@/lib/overrides";
 import Link from "next/link";
@@ -65,18 +64,17 @@ export default function MoveProductPage() {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)+/g, "");
 
-  // Families available for the selected drugstore, taken from JSON mapping
+  // Families available for the selected drugstore, taken from Firestore mapping (familyMap)
   const familiesForDst = useMemo(() => {
     if (!reDstDrugstore) return [] as string[];
     const set = new Set<string>();
-    const data = (defaultMap as Array<{ LABORATORIO: string; DROGUERIA: string }>);
-    for (const row of data) {
-      const dslug = slugLocal(String(row.DROGUERIA || ""));
-      const fam = String(row.LABORATORIO || "").trim();
-      if (dslug === reDstDrugstore && fam) set.add(fam);
+    for (const m of familyMap as any[]) {
+      const dsId = String((m as any).drugstoreId || '').trim();
+      const fam = String((m as any).family || '').trim();
+      if (dsId === reDstDrugstore && fam) set.add(fam);
     }
     return Array.from(set).sort((a,b)=>a.localeCompare(b));
-  }, [reDstDrugstore]);
+  }, [reDstDrugstore, familyMap]);
 
   // Familias disponibles (origen) basadas en los productos cargados
   const availableFamilies = useMemo(() => {

@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Download } from "lucide-react";
-import defaultMap from "@/lib/drugstores-default.json" assert { type: "json" };
+// Datos se obtienen desde Firestore vía store; no usar JSON local para cargar UI
 import { useRouter, useSearchParams } from "next/navigation";
 function DrugstoresContent() {
   const { products, pharmacies, conversions, drugstores: dsFromStore, familyMap: fmFromStore, productOverrides } = useAppState();
@@ -50,13 +50,11 @@ function DrugstoresContent() {
     dispatch({ type: "SET_DRUGSTORES_DATA", payload: { drugstores: withFallback, familyMap: fm } });
   };
 
-  // Inicializar droguerías y el mapeo
+  // Sincronizar estado local con el store (Firestore)
   useEffect(() => {
-    // Si no hay droguerías cargadas, usar el mapeo por defecto
-    if (drugstores.length === 0) {
-      buildStateFromJson(defaultMap);
-    }
-  }, []);
+    if ((dsFromStore?.length ?? 0) > 0) setDrugstores(dsFromStore);
+    if ((fmFromStore?.length ?? 0) > 0) setFamilyMap(fmFromStore);
+  }, [dsFromStore, fmFromStore]);
 
   const normalize = (s: string) =>
     String(s || "")
@@ -579,13 +577,12 @@ function DrugstoresContent() {
           )}
           <Button
             onClick={() => {
-              const data = defaultMap as Array<{ LABORATORIO: string; DROGUERIA: string }>;
-              buildStateFromJson(data);
-              // Persistir en Firestore para uso futuro entre procesos
-              saveDrugstoresAndFamilies(data).catch(()=>{});
+              // Re-sincronizar desde el store (que ya viene de Firestore)
+              setDrugstores(dsFromStore || []);
+              setFamilyMap(fmFromStore || []);
             }}
           >
-            Clasificar
+            Refrescar
           </Button>
         </div>
       </div>
@@ -598,7 +595,6 @@ function DrugstoresContent() {
         const ds = drugstores.find((d) => d.id === dsId);
         const rowsAll = byDrugstore[dsId] ?? [];
         const rows = rowsAll.filter(r => Number(((r as any).TOTAL) ?? 0) > 0);
-        if (rows.length === 0) return null;
         // Sucursales: si no hay definidas en el store, inferir desde las claves *_APEDIR del dataset
         const inferredBranches = (() => {
           if (branchesForColumns.length > 0) return branchesForColumns;
