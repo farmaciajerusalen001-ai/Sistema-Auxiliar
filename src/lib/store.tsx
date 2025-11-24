@@ -294,7 +294,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             console.warn('Error writing to localStorage:', error);
         }
     }
-  }, [state]);
+  }, [state, dispatch]);
+
+  // Refrescar overrides al cambiar de proceso o tras una nueva importación de productos
+  useEffect(() => {
+    (async () => {
+      try {
+        const remoteOverrides = await fetchProductOverrides().catch(()=>({} as any));
+        if (remoteOverrides && Object.keys(remoteOverrides).length > 0) {
+          dispatch({ type: 'MERGE_PRODUCT_OVERRIDES', payload: remoteOverrides });
+        }
+      } catch {}
+    })();
+  }, [(state as any)?.activeProcessId, state.products?.length]);
 
   return (
     <AppStateContext.Provider value={state}>
