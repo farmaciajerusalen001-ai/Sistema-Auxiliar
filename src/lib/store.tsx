@@ -5,7 +5,8 @@ import { fetchProductOverrides } from "./overrides";
 import type { Product, Pharmacy, Laboratory } from "./types";
 import { pharmacies as initialPharmacies, laboratories as initialLaboratories } from "./data";
 import { idbGet, idbSet, idbDel } from "@/lib/idb";
-import { fetchDrugstores, fetchFamilyMap } from "@/lib/drugstores";
+import { fetchDrugstores, fetchFamilyMap, saveDrugstoresAndFamilies } from "@/lib/drugstores";
+import defaultMap from "@/lib/drugstores-default.json" assert { type: "json" };
 
 interface AppState {
   products: Product[];
@@ -212,10 +213,40 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         } catch {}
         // 4) Cargar droguerías y mapeo permanentes desde Firestore (si disponible)
         try {
-          const [ds, fm] = await Promise.all([
+          let [ds, fm] = await Promise.all([
             fetchDrugstores().catch(()=>[]),
             fetchFamilyMap().catch(()=>[]),
           ]);
+          // Si Firestore está vacío, sembrar desde el JSON local una sola vez
+          if ((Array.isArray(ds) && ds.length === 0) && (Array.isArray(fm) && fm.length === 0)) {
+            try {
+              await saveDrugstoresAndFamilies(defaultMap as Array<{ LABORATORIO: string; DROGUERIA: string }>);
+              // recargar desde Firestore
+              [ds, fm] = await Promise.all([
+                fetchDrugstores().catch(()=>[]),
+                fetchFamilyMap().catch(()=>[]),
+              ]);
+            } catch {}
+          }
+          // Si Firestore ya tiene datos pero faltan familias/droguerías del JSON, completar faltantes
+          try {
+            const existingFamSet = new Set<string>((Array.isArray(fm) ? fm : []).map((x:any)=> String(x.family||'').trim().toUpperCase()));
+            const missing: Array<{ LABORATORIO: string; DROGUERIA: string }> = [];
+            for (const row of (defaultMap as Array<{ LABORATORIO: string; DROGUERIA: string }>)) {
+              const fam = String(row.LABORATORIO||'').trim();
+              if (!fam) continue;
+              if (!existingFamSet.has(fam.toUpperCase())) missing.push(row);
+            }
+            if (missing.length > 0) {
+              await saveDrugstoresAndFamilies(missing);
+              // recargar para incluir los nuevos
+              [ds, fm] = await Promise.all([
+                fetchDrugstores().catch(()=>[]),
+                fetchFamilyMap().catch(()=>[]),
+              ]);
+            }
+          } catch {}
+
           // Asegurar presencia de "sin-drogueria" y no duplicar
           const baseDs = Array.isArray(ds) ? ds : [];
           const withFallback = [{ id: 'sin-drogueria', name: 'Sin Droguería' }, ...baseDs.filter(d=>d.id!=='sin-drogueria')]
