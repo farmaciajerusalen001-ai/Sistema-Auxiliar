@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAppDispatch, useAppState } from "@/lib/store";
-import { resolveDrugstoreIdByFamily } from "@/lib/drugstores";
+import { resolveDrugstoreIdByFamily, upsertFamily } from "@/lib/drugstores";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import defaultMap from "@/lib/drugstores-default.json" assert { type: "json" };
 import { idbGet, idbSet } from "@/lib/idb";
+import { setProductOverride, deleteProductOverride } from "@/lib/overrides";
 import Link from "next/link";
 
 export default function MoveProductPage() {
@@ -178,13 +179,15 @@ export default function MoveProductPage() {
                 if (!reDstDrugstore) return; // droguería destino es obligatoria
                 const family = (reNewFamily && reNewFamily.trim()) ? reNewFamily.trim() : (reDstFamily || undefined);
                 dispatch({ type: "SET_PRODUCT_OVERRIDE", payload: { key, override: { drugstoreId: reDstDrugstore, laboratory: family } } });
+                // Persistir en Firestore
+                setProductOverride(key, { drugstoreId: reDstDrugstore, laboratory: family }).catch(() => {});
               }}
             >
               Guardar cambio
             </Button>
             <Button
               variant="outline"
-              onClick={() => { if (key) dispatch({ type: "CLEAR_PRODUCT_OVERRIDE", payload: { key } }); }}
+              onClick={() => { if (key) { dispatch({ type: "CLEAR_PRODUCT_OVERRIDE", payload: { key } }); deleteProductOverride(key).catch(()=>{}); } }}
             >
               Quitar override
             </Button>
@@ -246,6 +249,7 @@ export default function MoveProductPage() {
                   if (!k) continue;
                   keysApplied.push(k);
                   dispatch({ type: 'SET_PRODUCT_OVERRIDE', payload: { key: k, override: { drugstoreId: famDstDrugstore, laboratory: finalFamily } } });
+                  setProductOverride(k, { drugstoreId: famDstDrugstore, laboratory: finalFamily }).catch(()=>{});
                 }
                 // Actualizar familyMap para la familia
                 const nextMap = [
@@ -253,6 +257,8 @@ export default function MoveProductPage() {
                   { family: finalFamily, drugstoreId: famDstDrugstore },
                 ];
                 dispatch({ type: 'SET_FAMILY_MAP', payload: nextMap });
+                // Persistir mapeo de familia en Firestore
+                upsertFamily(finalFamily, famDstDrugstore).catch(()=>{});
               }}
               disabled={!srcFamily || !famDstDrugstore}
             >
@@ -273,6 +279,8 @@ export default function MoveProductPage() {
                     try {
                       await idbSet('pharmaPermanentOverrides', productOverrides);
                       dispatch({ type: 'MERGE_PRODUCT_OVERRIDES', payload: productOverrides });
+                      // Empujar overrides actuales a Firestore
+                      await Promise.all(Object.entries(productOverrides).map(([k, ov]) => setProductOverride(k, ov)));
                       alert('Overrides guardados como permanentes y aplicados.');
                     } catch {
                       alert('No fue posible guardar y aplicar los overrides permanentes.');

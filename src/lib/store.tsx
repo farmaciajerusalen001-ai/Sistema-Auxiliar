@@ -1,6 +1,7 @@
 "use client";
 
-import React, { createContext, useContext, useReducer, ReactNode, Dispatch, useEffect } from "react";
+import React, { createContext, useContext, useEffect, useReducer, ReactNode, Dispatch } from "react";
+import { fetchProductOverrides } from "./overrides";
 import type { Product, Pharmacy, Laboratory } from "./types";
 import { pharmacies as initialPharmacies, laboratories as initialLaboratories } from "./data";
 import { idbGet, idbSet, idbDel } from "@/lib/idb";
@@ -222,6 +223,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           const fmList = Array.isArray(fm) ? (fm as any[]).map((x:any)=> ({ family: x.family, drugstoreId: x.drugstoreId })) : [];
           if (withFallback.length > 1 || fmList.length > 0) {
             dispatch({ type: 'SET_DRUGSTORES_DATA', payload: { drugstores: withFallback, familyMap: fmList } });
+          }
+        } catch {}
+        // 5) Cargar overrides de producto desde Firestore
+        try {
+          const remoteOverrides = await fetchProductOverrides().catch(()=>({} as any));
+          if (remoteOverrides && Object.keys(remoteOverrides).length > 0) {
+            dispatch({ type: 'MERGE_PRODUCT_OVERRIDES', payload: remoteOverrides });
           }
         } catch {}
       } catch {}

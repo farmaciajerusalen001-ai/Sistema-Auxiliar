@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, Suspense } from "react";
 import { useAppDispatch, useAppState } from "@/lib/store";
 import { baseCanonicalFor, convertQuantity, humanLabelFor } from "@/lib/units";
-import { resolveDrugstoreIdByFamily } from "@/lib/drugstores";
+import { resolveDrugstoreIdByFamily, saveDrugstoresAndFamilies } from "@/lib/drugstores";
 import { makeDrugstoreColumns, type DrugstoreRow } from "@/components/drugstore-columns";
 import { ProductDataTable } from "@/components/product-data-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -581,6 +581,8 @@ function DrugstoresContent() {
             onClick={() => {
               const data = defaultMap as Array<{ LABORATORIO: string; DROGUERIA: string }>;
               buildStateFromJson(data);
+              // Persistir en Firestore para uso futuro entre procesos
+              saveDrugstoresAndFamilies(data).catch(()=>{});
             }}
           >
             Clasificar
