@@ -241,7 +241,7 @@ function DrugstoresContent() {
       result[drugstoreId] = rows;
     }
     return result;
-  }, [products, pharmacies, familyMap, conversions]);
+  }, [products, pharmacies, familyMap, conversions, productOverrides]);
 
   const exportExcel = async (drugstoreId: string, skipPrompt = false) => {
     if (!skipPrompt) {
@@ -591,10 +591,16 @@ function DrugstoresContent() {
         <div className="text-sm text-muted-foreground">Pulsa "Clasificar" para agrupar por Droguería usando el JSON local.</div>
       )}
 
-      {(selected === "all" ? drugstores.map((d) => d.id) : [selected]).map((dsId) => {
+      {(() => {
+        const baseIds = drugstores.map((d) => d.id);
+        const dataIds = Object.keys(byDrugstore || {});
+        const allIds = Array.from(new Set([...baseIds, ...dataIds]));
+        const ids = selected === "all" ? allIds : [selected];
+        return ids;
+      })().map((dsId) => {
         const ds = drugstores.find((d) => d.id === dsId);
         const rowsAll = byDrugstore[dsId] ?? [];
-        const rows = rowsAll.filter(r => Number(((r as any).TOTAL) ?? 0) > 0);
+        const rows = rowsAll; // mostrar todos, incluso TOTAL 0, para evidenciar movimientos
         // Sucursales: si no hay definidas en el store, inferir desde las claves *_APEDIR del dataset
         const inferredBranches = (() => {
           if (branchesForColumns.length > 0) return branchesForColumns;
@@ -608,11 +614,11 @@ function DrugstoresContent() {
           return Array.from(ids).sort().map(id => ({ id, name: id }));
         })();
         // Totales "A Pedir": general y por farmacia
-        const totalGeneral = rows.reduce((sum, r:any) => sum + Number(r.TOTAL ?? 0), 0);
+        const totalGeneral = rowsAll.reduce((sum, r:any) => sum + Number(r.TOTAL ?? 0), 0);
         const perBranchTotals = inferredBranches.map(b => ({
           id: b.id,
           name: b.name,
-          total: rows.reduce((sum, r:any) => sum + Number((r as any)[`${b.id}_APEDIR`] ?? 0), 0)
+          total: rowsAll.reduce((sum, r:any) => sum + Number((r as any)[`${b.id}_APEDIR`] ?? 0), 0)
         }));
         return (
           <Card key={dsId}>

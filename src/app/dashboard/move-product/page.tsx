@@ -51,9 +51,12 @@ export default function MoveProductPage() {
       seen.add(key);
       const label = code ? `${code} — ${desc}` : desc;
       const fam = String(p.FAMILIA ?? "");
-      const dsId = resolveDrugstoreIdByFamily(fam, familyMap, "sin-drogueria");
-      const dsName = (drugstores.find(d=>d.id===dsId)?.name) || dsId;
-      arr.push({ key, label, currentDs: dsName, currentFam: fam || "-" });
+      // Considerar override efectivo si existe
+      const ov = productOverrides[key];
+      const effDsId = ov?.drugstoreId || resolveDrugstoreIdByFamily(fam, familyMap, "sin-drogueria");
+      const effFam = ov?.laboratory ?? fam;
+      const dsName = (drugstores.find(d=>d.id===effDsId)?.name) || effDsId;
+      arr.push({ key, label, currentDs: dsName, currentFam: effFam || "-" });
       if (arr.length >= 12) break;
     }
     return arr;
